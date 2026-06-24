@@ -30,7 +30,7 @@ O repositório está atualmente vazio, iniciando do zero. A stack adotada será:
 | | 1.2 Pipeline de Dados Sintéticos (TTS + LLM) | 🤖 | [x] | [1.2-dados-sinteticos.md](milestone-1-infra-dados/1.2-dados-sinteticos.md) |
 | **2. API Ingestão & Fila** | 2.1 FastAPI Ingestão & Máquina de Estados | 🤖 | [x] | [2.1-fastapi-webhook-estado.md](milestone-2-ingestao-fila/2.1-fastapi-webhook-estado.md) |
 | | 2.2 Worker RQ & Resiliência de Estado | 🤖 | [x] | [2.2-worker-rq-resiliencia.md](milestone-2-ingestao-fila/2.2-worker-rq-resiliencia.md) |
-| **3. Transcrição & Diarização** | 3.1 Motor Transcrição e Diarização Pluggable | 🤖 | [ ] | [3.1-transcricao-diarizacao.md](milestone-3-audio-processamento/3.1-transcricao-diarizacao.md) |
-| | 3.2 Script de Benchmark WER | 🤖 | [ ] | [3.2-benchmark-wer.md](milestone-3-audio-processamento/3.2-benchmark-wer.md) |
+| **3. Transcrição & Diarização** | 3.1 Motor Transcrição e Diarização Pluggable | 🤖 | [/] | [3.1-transcricao-diarizacao.md](milestone-3-audio-processamento/3.1-transcricao-diarizacao.md) |
+| | 3.2 Script de Benchmark WER | 🤖 | [/] | [3.2-benchmark-wer.md](milestone-3-audio-processamento/3.2-benchmark-wer.md) |
 | **4. Scoring & Aprovação** | 4.1 Agregador Contexto & Scoring Engine | 🤖 | [ ] | [4.1-contexto-scoring-engine.md](milestone-4-scoring-notificacoes/4.1-contexto-scoring-engine.md) |
 | | 4.2 Notificações e Callback Humano | 🧑 | [ ] | [4.2-notificacoes-callback.md](milestone-4-scoring-notificacoes/4.2-notificacoes-callback.md) |
