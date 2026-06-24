@@ -1,0 +1,167 @@
+import abc
+import os
+import logging
+import uuid
+import httpx
+from typing import Dict, Any, List, Optional
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+class BaseNotification(abc.ABC):
+    @abc.abstractmethod
+    def notify_scorecard(self, interview_id: uuid.UUID, scorecard: dict) -> None:
+        """
+        Sends the scorecard notification.
+        """
+        pass
+
+
+class SlackNotification(BaseNotification):
+    def __init__(self, webhook_url: Optional[str] = None):
+        self.webhook_url = webhook_url or settings.slack_webhook_url
+
+    def notify_scorecard(self, interview_id: uuid.UUID, scorecard: dict) -> None:
+        if not self.webhook_url:
+            logger.info("Slack webhook URL not configured, skipping notification.")
+            return
+
+        candidate_name = scorecard.get("candidate_name", "Candidato")
+        overall = scorecard.get("overall_recommendation", "N/A")
+        evaluations = scorecard.get("evaluations", [])
+
+        # Build interactive Slack Block Kit payload
+        blocks = [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"Avaliação de Entrevista: {candidate_name}",
+                    "emoji": True
+                }
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*ID da Entrevista:*\n{str(interview_id)}"
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Recomendação Geral:*\n{overall}"
+                    }
+                ]
+            },
+            {
+                "type": "divider"
+            }
+        ]
+
+        # Add evaluations
+        for ev in evaluations:
+            comp_name = ev.get("competency_name", "")
+            score = ev.get("score", 0)
+            justification = ev.get("justification", "")
+            quote = ev.get("evidence_quote", "")
+            verified = ev.get("evidence_verified", None)
+
+            if verified is True:
+                status_str = "🟢 [OK]"
+            elif verified is False:
+                status_str = "🔴 [ALERTA: Alucinação detectada]"
+            else:
+                status_str = "⚪ [Não verificado]"
+
+            comp_text = (
+                f"*Competência:* {comp_name}\n"
+                f"*Nota:* {score}/5\n"
+                f"*Justificativa:* {justification}\n"
+                f"*Evidência:* \"{quote}\"\n"
+                f"*Status:* {status_str}"
+            )
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": comp_text
+                }
+            })
+            blocks.append({"type": "divider"})
+
+        # Action buttons
+        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+        approve_url = f"{base_url}/interviews/{str(interview_id)}/action?action=approve"
+        reject_url = f"{base_url}/interviews/{str(interview_id)}/action?action=reject"
+
+        blocks.append({
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Aprovar ✔️",
+                        "emoji": True
+                    },
+                    "style": "primary",
+                    "value": "approve",
+                    "url": approve_url,
+                    "action_id": "approve_interview"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Rejeitar ❌",
+                        "emoji": True
+                    },
+                    "style": "danger",
+                    "value": "reject",
+                    "url": reject_url,
+                    "action_id": "reject_interview"
+                }
+            ]
+        })
+
+        payload = {"blocks": blocks}
+        logger.info(f"Sending Slack notification block kit to {self.webhook_url}: {payload}")
+        response = httpx.post(self.webhook_url, json=payload)
+        response.raise_for_status()
+
+
+class WebhookNotification(BaseNotification):
+    def __init__(self, webhook_url: Optional[str] = None):
+        self.webhook_url = webhook_url or settings.notification_webhook_url
+
+    def notify_scorecard(self, interview_id: uuid.UUID, scorecard: dict) -> None:
+        if not self.webhook_url:
+            logger.info("Webhook URL not configured, skipping notification.")
+            return
+
+        payload = {
+            "interview_id": str(interview_id),
+            "scorecard": scorecard
+        }
+        logger.info(f"Sending generic webhook notification to {self.webhook_url}: {payload}")
+        response = httpx.post(self.webhook_url, json=payload)
+        response.raise_for_status()
+
+
+class NotificationDispatcher:
+    def __init__(self, channels: Optional[List[BaseNotification]] = None):
+        if channels is None:
+            self.channels = []
+            if settings.slack_webhook_url:
+                self.channels.append(SlackNotification())
+            if settings.notification_webhook_url:
+                self.channels.append(WebhookNotification())
+        else:
+            self.channels = channels
+
+    def dispatch(self, interview_id: uuid.UUID, scorecard: dict) -> None:
+        for channel in self.channels:
+            try:
+                channel.notify_scorecard(interview_id, scorecard)
+            except Exception as e:
+                logger.error(f"Failed to send notification via {channel.__class__.__name__}: {e}")

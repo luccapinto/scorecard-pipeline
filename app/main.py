@@ -122,3 +122,54 @@ async def get_interview(
             detail=f"Interview {interview_id} not found"
         )
     return interview
+
+class ActionPayload(BaseModel):
+    action: str = Field(..., description="Action to perform: 'approve' or 'reject'")
+
+@app.post("/interviews/{interview_id}/action")
+async def interview_action(
+    interview_id: uuid.UUID,
+    payload: ActionPayload,
+    session: Session = Depends(get_session)
+):
+    interview = session.get(Interview, interview_id)
+    if not interview:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Interview {interview_id} not found"
+        )
+
+    if interview.status != InterviewStatus.AGUARDANDO_APROVACAO:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Interview is not in '{InterviewStatus.AGUARDANDO_APROVACAO.value}' status. Current status: '{interview.status.value}'"
+        )
+
+    if payload.action == "approve":
+        target_status = InterviewStatus.APROVADA
+    elif payload.action == "reject":
+        target_status = InterviewStatus.REJEITADA
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid action. Allowed values are 'approve' or 'reject'"
+        )
+
+    try:
+        interview.transition_to(target_status)
+        session.add(interview)
+        session.commit()
+        session.refresh(interview)
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to transition interview status: {str(e)}"
+        )
+
+    return {
+        "interview_id": str(interview.id),
+        "status": interview.status.value,
+        "updated_at": interview.updated_at.isoformat()
+    }
+

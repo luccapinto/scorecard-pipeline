@@ -103,15 +103,55 @@ def diarize_audio(recording_url: str, transcription_raw: Any = None) -> List[Dic
                 logger.warning(f"Failed to delete temp file {local_path}: {e}")
 
 def score_interview(transcription: Any, diarization: Any, job_id: str) -> dict:
-    """Stub for scoring service (Milestone 4)."""
-    logger.info(f"Scoring interview for job_id {job_id}")
-    return {
-        "competencies": [
-            {"name": "Comunicação e Code-switching", "score": 4, "evidence": "Candidato usou termos em ingles com propriedade."},
-            {"name": "Conhecimento de Infraestrutura e Banco de Dados", "score": 3, "evidence": "Demonstrou conhecimento basico de Postgres e Redis."}
-        ]
-    }
+    """
+    Evaluates candidate performance on competencies based on job context files,
+    using OpenRouter and running evidence verification.
+    """
+    from app.scoring import ContextAggregator, ScoringEngine, EvidenceValidator
+    
+    logger.info(f"Loading context files for job_id: {job_id}")
+    aggregator = ContextAggregator()
+    context = aggregator.load_context(job_id)
+    
+    logger.info("Evaluating interview scoring...")
+    engine = ScoringEngine()
+    scorecard = engine.evaluate(transcription_raw=transcription, context=context)
+    
+    # Post-process and validate evidence quotes against transcript
+    for eval_item in scorecard.evaluations:
+        is_verified = EvidenceValidator.validate_evidence(
+            evidence_quote=eval_item.evidence_quote,
+            transcription_raw=transcription
+        )
+        eval_item.evidence_verified = is_verified
+        
+    return scorecard.model_dump()
 
-def notify_approval(interview_id: str) -> None:
-    """Stub for notification service (Milestone 4)."""
-    logger.info(f"Notifying approval for interview {interview_id}")
+def notify_approval(interview_id: Any) -> None:
+    """
+    Dispatches notifications containing the evaluation scorecard.
+    """
+    import uuid
+    from sqlmodel import Session
+    from app.database import engine
+    from app.models import Interview
+    from app.notifications import NotificationDispatcher
+    
+    if isinstance(interview_id, str):
+        interview_id_uuid = uuid.UUID(interview_id)
+    else:
+        interview_id_uuid = interview_id
+        
+    with Session(engine) as session:
+        interview = session.get(Interview, interview_id_uuid)
+        if not interview:
+            logger.error(f"Interview {interview_id_uuid} not found for notification.")
+            return
+        if not interview.scorecard:
+            logger.warning(f"Interview {interview_id_uuid} has no scorecard, cannot notify.")
+            return
+            
+        logger.info(f"Dispatching notifications for interview {interview_id_uuid}")
+        dispatcher = NotificationDispatcher()
+        dispatcher.dispatch(interview_id_uuid, interview.scorecard)
+

@@ -32,5 +32,5 @@ O repositório está atualmente vazio, iniciando do zero. A stack adotada será:
 | | 2.2 Worker RQ & Resiliência de Estado | 🤖 | [x] | [2.2-worker-rq-resiliencia.md](milestone-2-ingestao-fila/2.2-worker-rq-resiliencia.md) |
 | **3. Transcrição & Diarização** | 3.1 Motor Transcrição e Diarização Pluggable | 🤖 | [x] | [3.1-transcricao-diarizacao.md](milestone-3-audio-processamento/3.1-transcricao-diarizacao.md) |
 | | 3.2 Script de Benchmark WER | 🤖 | [x] | [3.2-benchmark-wer.md](milestone-3-audio-processamento/3.2-benchmark-wer.md) |
-| **4. Scoring & Aprovação** | 4.1 Agregador Contexto & Scoring Engine | 🤖 | [/] | [4.1-contexto-scoring-engine.md](milestone-4-scoring-notificacoes/4.1-contexto-scoring-engine.md) |
-| | 4.2 Notificações e Callback Humano | 🧑 | [/] | [4.2-notificacoes-callback.md](milestone-4-scoring-notificacoes/4.2-notificacoes-callback.md) |
+| **4. Scoring & Aprovação** | 4.1 Agregador Contexto & Scoring Engine | 🤖 | [x] | [4.1-contexto-scoring-engine.md](milestone-4-scoring-notificacoes/4.1-contexto-scoring-engine.md) |
+| | 4.2 Notificações e Callback Humano | 🧑 | [x] | [4.2-notificacoes-callback.md](milestone-4-scoring-notificacoes/4.2-notificacoes-callback.md) |

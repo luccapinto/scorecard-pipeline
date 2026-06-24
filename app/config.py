@@ -9,6 +9,13 @@ class Settings(BaseSettings):
     whisper_model: str = "base"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
+    
+    # OpenRouter, Jobs Context and Notifications
+    openrouter_api_key: str = ""
+    openrouter_model: str = "google/gemini-2.5-flash"
+    jobs_dir: str = "data/synthetic"
+    slack_webhook_url: str = ""
+    notification_webhook_url: str = ""
 
 
     model_config = SettingsConfigDict(
