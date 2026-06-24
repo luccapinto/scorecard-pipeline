@@ -58,7 +58,7 @@ def process_interview(interview_id: str) -> None:
             if interview.status == InterviewStatus.DIARIZADA:
                 if not interview.diarization_raw:
                     logger.info("Running audio diarization...")
-                    diarization = diarize_audio(interview.recording_url)
+                    diarization = diarize_audio(interview.recording_url, transcription_raw=interview.transcription_raw)
                     interview.diarization_raw = diarization
                     session.add(interview)
                     session.commit()

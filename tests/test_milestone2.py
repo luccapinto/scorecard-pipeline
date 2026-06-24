@@ -148,7 +148,7 @@ def test_process_interview_end_to_end(
     assert interview.error_log is None
     
     mock_transcribe.assert_called_once_with("http://example.com/audio.mp3")
-    mock_diarize.assert_called_once_with("http://example.com/audio.mp3")
+    mock_diarize.assert_called_once_with("http://example.com/audio.mp3", transcription_raw={"text": "Hello world"})
     mock_score.assert_called_once_with({"text": "Hello world"}, {"speakers": []}, "test_job")
     mock_notify.assert_called_once_with(interview.id)
 
