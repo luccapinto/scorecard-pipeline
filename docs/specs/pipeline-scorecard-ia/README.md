@@ -26,8 +26,8 @@ O repositório está atualmente vazio, iniciando do zero. A stack adotada será:
 
 | Milestone | Card | Tag | Status | Arquivo |
 |---|---|---|---|---|
-| **1. Infra & Dados Sintéticos** | 1.1 Docker Compose, Postgres e Estado | 🤖 | [/] | [1.1-docker-postgres-estado.md](milestone-1-infra-dados/1.1-docker-postgres-estado.md) |
-| | 1.2 Pipeline de Dados Sintéticos (TTS + LLM) | 🤖 | [/] | [1.2-dados-sinteticos.md](milestone-1-infra-dados/1.2-dados-sinteticos.md) |
+| **1. Infra & Dados Sintéticos** | 1.1 Docker Compose, Postgres e Estado | 🤖 | [x] | [1.1-docker-postgres-estado.md](milestone-1-infra-dados/1.1-docker-postgres-estado.md) |
+| | 1.2 Pipeline de Dados Sintéticos (TTS + LLM) | 🤖 | [x] | [1.2-dados-sinteticos.md](milestone-1-infra-dados/1.2-dados-sinteticos.md) |
 | **2. API Ingestão & Fila** | 2.1 FastAPI Ingestão & Máquina de Estados | 🤖 | [ ] | [2.1-fastapi-webhook-estado.md](milestone-2-ingestao-fila/2.1-fastapi-webhook-estado.md) |
 | | 2.2 Worker RQ & Resiliência de Estado | 🤖 | [ ] | [2.2-worker-rq-resiliencia.md](milestone-2-ingestao-fila/2.2-worker-rq-resiliencia.md) |
 | **3. Transcrição & Diarização** | 3.1 Motor Transcrição e Diarização Pluggable | 🤖 | [ ] | [3.1-transcricao-diarizacao.md](milestone-3-audio-processamento/3.1-transcricao-diarizacao.md) |
