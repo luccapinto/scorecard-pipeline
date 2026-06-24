@@ -57,6 +57,15 @@ class Interview(SQLModel, table=True):
         sa_column=Column(JSON, nullable=True)
     )
     
+    job_id: Optional[str] = Field(
+        default=None,
+        nullable=True
+    )
+    error_log: Optional[str] = Field(
+        default=None,
+        nullable=True
+    )
+    
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         nullable=False
