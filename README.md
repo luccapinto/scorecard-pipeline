@@ -1,10 +1,12 @@
 # Pipeline de Scorecard de Entrevistas com IA
 
-[![CI Tests](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/luccapinto/scorecard-pipeline)
+[![CI Tests](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/ci.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Este é um projeto de portfólio open-source focado no processamento assíncrono e orientado a eventos de gravações de entrevistas de recrutamento. Ele realiza a **transcrição multi-falante (STT)**, **diarização (quem falou o quê)**, **avaliação automatizada por competências (scorecards baseados na escala BARS)** via LLMs e envia o resultado para aprovação humana final (**Human-in-the-loop**).
+> 💡 **Metadados recomendados para o seu repositório no GitHub:**
+> - **Descrição:** *Pipeline orientado a eventos de avaliação de entrevistas de recrutamento (FastAPI, Redis Queue, PostgreSQL), com transcrição pluggable (WhisperX / OpenAI), diarização por falante (Pyannote), scoring estruturado com LLMs via OpenRouter e validação de evidências (Human-in-the-loop).*
+> - **Tags / Tópicos sugeridos:** `fastapi`, `redis-queue`, `postgresql`, `whisperx`, `pyannote-audio`, `openrouter-api`, `structured-outputs`, `pydantic-validation`, `human-in-the-loop`, `wer-evaluation`, `tts-generation`, `python-backend`, `software-architecture`, `event-driven-architecture`
 
 ---
 
