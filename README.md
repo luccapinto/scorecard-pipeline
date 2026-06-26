@@ -4,12 +4,6 @@
 [![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> 💡 **Metadados recomendados para o seu repositório no GitHub:**
-> - **Descrição:** *Pipeline orientado a eventos de avaliação de entrevistas de recrutamento (FastAPI, Redis Queue, PostgreSQL), com transcrição pluggable (WhisperX / OpenAI), diarização por falante (Pyannote), scoring estruturado com LLMs via OpenRouter e validação de evidências (Human-in-the-loop).*
-> - **Tags / Tópicos sugeridos:** `fastapi`, `redis-queue`, `postgresql`, `whisperx`, `pyannote-audio`, `openrouter-api`, `structured-outputs`, `pydantic-validation`, `human-in-the-loop`, `wer-evaluation`, `tts-generation`, `python-backend`, `software-architecture`, `event-driven-architecture`
-
----
-
 ## 🏗️ Arquitetura do Sistema
 
 O pipeline é projetado para processar cada gravação de entrevista individualmente, sem polling periódico e sem loteamento.
