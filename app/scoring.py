@@ -132,7 +132,10 @@ class ScoringEngine:
     Scoring Engine using OpenRouter structured Pydantic output.
     """
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
-        self.api_key = api_key or settings.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
+        if api_key is None:
+            self.api_key = settings.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
+        else:
+            self.api_key = api_key
         self.model = model or settings.openrouter_model or "google/gemini-2.5-flash"
 
     def evaluate(self, transcription_raw: Any, context: dict, candidate_name: str = "Candidato") -> ScorecardOutput:
