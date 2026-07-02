@@ -40,3 +40,9 @@ env/
 
 # Generated data
 data/
+
+# Test/lint artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/

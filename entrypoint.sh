@@ -1,11 +1,13 @@
 #!/bin/bash
 set -e
 
-# Load env variables if .env exists
+# Load env variables if .env exists (handles values with spaces safely)
 if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
 fi
 
 echo "Starting RQ Worker..."
-# Run the worker script
 exec python run_worker.py

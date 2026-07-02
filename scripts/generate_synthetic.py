@@ -6,7 +6,6 @@ import tempfile
 import numpy as np
 import soundfile as sf
 import edge_tts
-from typing import List
 
 from app.schemas import (
     JobDescription,

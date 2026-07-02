@@ -1,5 +1,4 @@
 import abc
-import os
 import logging
 import uuid
 import httpx
@@ -8,20 +7,43 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class BaseNotification(abc.ABC):
     @abc.abstractmethod
-    def notify_scorecard(self, interview_id: uuid.UUID, scorecard: dict) -> None:
+    def notify_scorecard(
+        self,
+        interview_id: uuid.UUID,
+        scorecard: dict,
+        approval_token: Optional[str] = None,
+    ) -> None:
         """
         Sends the scorecard notification.
         """
         pass
 
 
+def build_decision_url(interview_id: uuid.UUID, action: str, approval_token: str) -> str:
+    """
+    Builds the one-time-token GET link used by notification buttons. The token
+    is single-use and validated server-side, so the link cannot be forged or
+    replayed.
+    """
+    return (
+        f"{settings.api_base_url}/interviews/{interview_id}/decision"
+        f"?action={action}&token={approval_token}"
+    )
+
+
 class SlackNotification(BaseNotification):
     def __init__(self, webhook_url: Optional[str] = None):
         self.webhook_url = webhook_url or settings.slack_webhook_url
 
-    def notify_scorecard(self, interview_id: uuid.UUID, scorecard: dict) -> None:
+    def notify_scorecard(
+        self,
+        interview_id: uuid.UUID,
+        scorecard: dict,
+        approval_token: Optional[str] = None,
+    ) -> None:
         if not self.webhook_url:
             logger.info("Slack webhook URL not configured, skipping notification.")
             return
@@ -89,43 +111,45 @@ class SlackNotification(BaseNotification):
             })
             blocks.append({"type": "divider"})
 
-        # Action buttons
-        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
-        approve_url = f"{base_url}/interviews/{str(interview_id)}/action?action=approve"
-        reject_url = f"{base_url}/interviews/{str(interview_id)}/action?action=reject"
-
-        blocks.append({
-            "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "Aprovar ✔️",
-                        "emoji": True
+        # Action buttons. Slack `url` buttons open the link in a browser (GET),
+        # so they must target the token-protected GET decision endpoint.
+        if approval_token:
+            blocks.append({
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Aprovar ✔️",
+                            "emoji": True
+                        },
+                        "style": "primary",
+                        "value": "approve",
+                        "url": build_decision_url(interview_id, "approve", approval_token),
+                        "action_id": "approve_interview"
                     },
-                    "style": "primary",
-                    "value": "approve",
-                    "url": approve_url,
-                    "action_id": "approve_interview"
-                },
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "Rejeitar ❌",
-                        "emoji": True
-                    },
-                    "style": "danger",
-                    "value": "reject",
-                    "url": reject_url,
-                    "action_id": "reject_interview"
-                }
-            ]
-        })
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Rejeitar ❌",
+                            "emoji": True
+                        },
+                        "style": "danger",
+                        "value": "reject",
+                        "url": build_decision_url(interview_id, "reject", approval_token),
+                        "action_id": "reject_interview"
+                    }
+                ]
+            })
+        else:
+            logger.warning(
+                "No approval token available; sending Slack notification without action buttons."
+            )
 
         payload = {"blocks": blocks}
-        logger.info(f"Sending Slack notification block kit to {self.webhook_url}: {payload}")
+        logger.info(f"Sending Slack notification for interview {interview_id}")
         response = httpx.post(self.webhook_url, json=payload)
         response.raise_for_status()
 
@@ -134,16 +158,24 @@ class WebhookNotification(BaseNotification):
     def __init__(self, webhook_url: Optional[str] = None):
         self.webhook_url = webhook_url or settings.notification_webhook_url
 
-    def notify_scorecard(self, interview_id: uuid.UUID, scorecard: dict) -> None:
+    def notify_scorecard(
+        self,
+        interview_id: uuid.UUID,
+        scorecard: dict,
+        approval_token: Optional[str] = None,
+    ) -> None:
         if not self.webhook_url:
             logger.info("Webhook URL not configured, skipping notification.")
             return
 
-        payload = {
+        payload: Dict[str, Any] = {
             "interview_id": str(interview_id),
             "scorecard": scorecard
         }
-        logger.info(f"Sending generic webhook notification to {self.webhook_url}: {payload}")
+        if approval_token:
+            payload["approve_url"] = build_decision_url(interview_id, "approve", approval_token)
+            payload["reject_url"] = build_decision_url(interview_id, "reject", approval_token)
+        logger.info(f"Sending generic webhook notification for interview {interview_id}")
         response = httpx.post(self.webhook_url, json=payload)
         response.raise_for_status()
 
@@ -159,9 +191,14 @@ class NotificationDispatcher:
         else:
             self.channels = channels
 
-    def dispatch(self, interview_id: uuid.UUID, scorecard: dict) -> None:
+    def dispatch(
+        self,
+        interview_id: uuid.UUID,
+        scorecard: dict,
+        approval_token: Optional[str] = None,
+    ) -> None:
         for channel in self.channels:
             try:
-                channel.notify_scorecard(interview_id, scorecard)
+                channel.notify_scorecard(interview_id, scorecard, approval_token=approval_token)
             except Exception as e:
                 logger.error(f"Failed to send notification via {channel.__class__.__name__}: {e}")

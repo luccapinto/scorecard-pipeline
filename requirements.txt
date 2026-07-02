@@ -1,17 +1,15 @@
+# Production dependencies (API + worker orchestration).
+# Dev/test tooling lives in requirements-dev.txt; heavy ML backends
+# (WhisperX, pyannote) live in requirements-ml.txt.
+fastapi==0.138.0
+uvicorn==0.49.0
 sqlmodel==0.0.22
 pydantic-settings==2.3.4
 python-dotenv==1.0.1
 psycopg2-binary==2.9.9
-edge-tts==7.2.8
-pytest==8.2.2
-pytest-asyncio==0.23.7
-numpy==1.26.4
-soundfile==0.12.1
-fastapi==0.138.0
-uvicorn==0.49.0
+alembic==1.18.5
 rq==2.10.0
 redis==8.0.1
 httpx==0.28.1
 openai==2.43.0
-jiwer==4.0.0
-
+rapidfuzz==3.14.5

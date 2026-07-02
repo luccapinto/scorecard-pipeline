@@ -1,10 +1,9 @@
 import os
 import tempfile
 import pytest
-import json
 import numpy as np
 import soundfile as sf
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 
 from app.schemas import (
     JobDescription,

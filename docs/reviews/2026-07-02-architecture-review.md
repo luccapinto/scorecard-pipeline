@@ -197,6 +197,42 @@ Transcrições integrais, nomes e avaliações de candidatos ficam para sempre n
 
 ---
 
-## 5. Observação final
+## 5. Status de Implementação (2026-07-02)
+
+As correções foram implementadas no mesmo branch desta revisão:
+
+| Achado | Status | Como |
+|---|---|---|
+| C1 | ✅ Corrigido | `run_worker.py` migrado para a API do RQ 2.x + teste de smoke que importa o worker |
+| C2 | ✅ Corrigido | Mocks e `TEST_MODE` removidos do código de produção; dependência ausente → `TranscriptionDependencyError`; validação fail-fast no startup do worker; extras em `requirements-ml.txt` |
+| C3 | ✅ Corrigido | `job_timeout` configurável (2h default), `Retry(max=3, interval=[60,300,900])`, estado `FALHOU` + `retry_count`, endpoint `POST /interviews/{id}/reprocess` com retomada por checkpoint |
+| A1 | ✅ Corrigido | HMAC-SHA256 no webhook (`WEBHOOK_HMAC_SECRET`), API key (`X-API-Key`) nos endpoints de leitura/ação; sem secret/key configurados, dev-mode com warning |
+| A2 | ✅ Corrigido | Guarda anti-SSRF (bloqueio de IPs privados/loopback/link-local, schemes restritos), caminhos locais restritos a `AUDIO_ALLOWED_DIR`, mensagem de erro uniforme (sem oracle) |
+| A3 | ✅ Corrigido | Endpoint GET `/interviews/{id}/decision` com token de uso único; botões do Slack e webhook genérico apontam para ele |
+| A4 | ✅ Corrigido | `app/maintenance.py::requeue_stale_interviews` + `POST /admin/reconcile` + CLI `python -m app.maintenance` |
+| A5 | ✅ Corrigido | `external_id` único como chave de idempotência do webhook; `SELECT ... FOR UPDATE` no worker; no-op para entrevistas já entregues; `onupdate` em `updated_at` |
+| A6 | ✅ Corrigido | Condições de mock por engine corrigidas; relatório rotula `SIMULADO (mock)` vs `REAL` em cada linha; relatório commitado corrigido com aviso destacado |
+| A7 | ✅ Corrigido | Alembic com migração inicial (validada upgrade/downgrade/upgrade no CI contra Postgres real); DDL removido do startup da API |
+| M1 | ✅ Corrigido | `AudioSource`: download único por job, streaming para disco, timeout e limite de tamanho (`MAX_AUDIO_BYTES`) |
+| M2 | ✅ Corrigido | Cache de modelos por processo de worker (WhisperX, align model e pipeline pyannote) |
+| M3 | ✅ Corrigido | `DIARIZADA` → `DIARIZANDO` (semântica honesta) + estado `FALHOU` |
+| M4 | ✅ Parcial | JSONB no Postgres (variant), índices em `status`/`job_id`/`external_id`, `DateTime(timezone=True)`. Normalização do scorecard em tabela própria: deferida (Fase 2) |
+| M5 | ✅ Corrigido | Fuzzy matching (RapidFuzz `partial_ratio`, threshold configurável) com fallback para match exato |
+| M6 | ✅ Corrigido | `score` com `ge=1, le=5`, `overall_recommendation` como `Literal`, `temperature=0`, retry de parsing (3 tentativas com feedback do erro), structured outputs `json_schema` derivado do Pydantic, resposta da LLM só em DEBUG |
+| M7 | ✅ Parcial | Logs com correlation id (`interview_id` via contextvar), formatter JSON opcional (`LOG_JSON`), `/health`, duração por etapa. Prometheus/Sentry: deferidos (infra) |
+| M8 | ✅ Corrigido | `WHISPER_LANGUAGE=pt` default, `batch_size` configurável, falha de alinhamento logada como ERROR |
+| M9 | ✅ Parcial | PII fora dos logs (INFO), retenção via `purge_old_interviews` + `RETENTION_DAYS`. Criptografia em nível de aplicação: deferida |
+| B1 | ✅ Corrigido | `requirements.txt` (prod) / `requirements-dev.txt` / `requirements-ml.txt` |
+| B2 | ✅ Corrigido | `Dockerfile` (arg `INSTALL_ML`), compose com API + worker + healthchecks, senha via env var, `version:` removido |
+| B3 | ✅ Corrigido | `clean_text` unificada em `app/text_utils.py` |
+| B4 | ✅ Corrigido | CI com ruff, cobertura e validação de migração contra o Postgres do próprio CI; `TEST_MODE` eliminado |
+| B5 | ✅ Corrigido | `entrypoint.sh` com `set -a; source .env` |
+| B6 | ✅ Parcial | Imports tardios removidos de `app/main.py`; DI completa (engine/fila injetáveis): deferida |
+| B7 | ✅ Mitigado | Falha de contexto agora leva a `FALHOU` visível com `error_log`, em vez de estado preso |
+| B8 | ✅ Corrigido | Handler global não ecoa mais `str(exc)`; testes de auth/HMAC/decision adicionados |
+
+Fase 3 (diarização single-pass com WhisperX, golden set de avaliação, storage S3) permanece como evolução de produto. O diálogo diarizado agora **é** injetado no prompt de scoring (ganho imediato apontado na Fase 3).
+
+## 6. Observação final
 
 O contraste central do repositório: o **desenho** (estados, checkpointing, HITL, anti-alucinação, ADRs) é maduro, mas a **execução** nunca foi validada de ponta a ponta com componentes reais — worker que não sobe, motores de ML ausentes das dependências, botões de aprovação quebrados e benchmark simulado passariam despercebidos até o primeiro deploy. A prioridade número um não é adicionar features: é fechar o vão entre o que os testes provam (unidades mockadas) e o que o sistema faz de verdade (integração real). Um único teste E2E em CI com Redis + Postgres reais e um worker RQ de verdade teria capturado 3 dos 4 achados mais graves.
