@@ -48,3 +48,6 @@ data/**/*.mp3
 htmlcov/
 .pytest_cache/
 .ruff_cache/
+
+# Redis snapshots
+dump.rdb
