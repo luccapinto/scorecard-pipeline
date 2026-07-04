@@ -150,7 +150,7 @@ class SlackNotification(BaseNotification):
 
         payload = {"blocks": blocks}
         logger.info(f"Sending Slack notification for interview {interview_id}")
-        response = httpx.post(self.webhook_url, json=payload)
+        response = httpx.post(self.webhook_url, json=payload, timeout=10)
         response.raise_for_status()
 
 
@@ -176,7 +176,7 @@ class WebhookNotification(BaseNotification):
             payload["approve_url"] = build_decision_url(interview_id, "approve", approval_token)
             payload["reject_url"] = build_decision_url(interview_id, "reject", approval_token)
         logger.info(f"Sending generic webhook notification for interview {interview_id}")
-        response = httpx.post(self.webhook_url, json=payload)
+        response = httpx.post(self.webhook_url, json=payload, timeout=10)
         response.raise_for_status()
 
 

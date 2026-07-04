@@ -170,11 +170,23 @@ O schema é gerenciado pelo Alembic (a API não cria tabelas no startup):
 alembic upgrade head
 ```
 
-### 5. Gerando os Dados Sintéticos de Teste
+### 5. Dataset Sintético de Teste
+O repositório já inclui em `data/synthetic/` os arquivos JSON (vaga, competências
+BARS, checklist e roteiro de diálogo) de **três perfis de entrevista realistas**,
+cobrindo todo o espectro de avaliação:
+
+| Perfil | Vaga | Candidato | Resultado esperado |
+|---|---|---|---|
+| `python_pleno` | Desenvolvedor Python Pleno | Forte (métricas concretas, incidente real, boas práticas) | Aprovado |
+| `dados_senior` | Engenheiro de Dados Sênior | Misto (forte em pipelines/Spark, fraco em streaming) | Próxima Etapa |
+| `frontend_junior` | Frontend Júnior (React) | Fraco (respostas vagas, conceitos confundidos) | Rejeitado |
+
+Para gerar os áudios `.wav` multi-voz (requer acesso à internet para o TTS):
 ```bash
-python scripts/generate_synthetic.py
+python scripts/generate_synthetic.py                       # todos os perfis
+python scripts/generate_synthetic.py --profile dados_senior  # um perfil específico
+python scripts/generate_synthetic.py --skip-audio          # apenas regenerar os JSONs
 ```
-Esse comando irá criar arquivos de áudio `.wav` e metadados JSON na pasta `data/synthetic/`.
 
 ### 6. Executando o Worker RQ e o Servidor Web
 Abra dois terminais (com o ambiente virtual ativo):

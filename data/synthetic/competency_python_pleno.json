@@ -1,0 +1,48 @@
+{
+  "competencies": [
+    {
+      "name": "Comunicação e Code-switching",
+      "description": "Capacidade de se comunicar claramente sobre termos técnicos de engenharia em inglês no contexto de falas em português.",
+      "bars_levels": {
+        "1": "Comunicação confusa e insegura, com dificuldade de se expressar utilizando termos técnicos apropriados.",
+        "2": "Consegue se expressar, mas comete erros constantes de pronúncia ou usa termos técnicos de forma errada.",
+        "3": "Comunicação clara e fluida, utilizando termos técnicos comuns em inglês adequadamente (code-switching).",
+        "4": "Excelente habilidade de comunicação, detalha decisões técnicas usando termos em inglês com muita propriedade.",
+        "5": "Excepcional habilidade comunicativa, transita entre conceitos técnicos complexos com clareza exemplar."
+      }
+    },
+    {
+      "name": "Conhecimento de Infraestrutura e Banco de Dados",
+      "description": "Domínio técnico de modelagem relacional, otimização de queries e transações no PostgreSQL, e cache/filas com Redis.",
+      "bars_levels": {
+        "1": "Não demonstra conhecimento básico de banco de dados ou Redis.",
+        "2": "Conhecimento superficial; compreende o papel do banco mas não sabe projetar tabelas ou queries otimizadas.",
+        "3": "Consegue modelar entidades, realizar CRUD básico no Postgres e configurar Redis básico para cache.",
+        "4": "Demonstra bom conhecimento de transações, índices Postgres, resiliência de filas com Redis/RQ e persistência.",
+        "5": "Domínio avançado, propõe otimizações complexas de banco, particionamento ou alta disponibilidade em filas Redis."
+      }
+    },
+    {
+      "name": "Arquitetura de APIs e Boas Práticas",
+      "description": "Capacidade de projetar APIs REST bem estruturadas, aplicar padrões de projeto e manter qualidade de código com testes.",
+      "bars_levels": {
+        "1": "Não conhece princípios de design de API nem práticas de qualidade de código.",
+        "2": "Conhece conceitos básicos de REST mas não aplica testes nem padrões de forma consistente.",
+        "3": "Projeta endpoints REST coerentes, escreve testes unitários e conhece princípios SOLID.",
+        "4": "Projeta APIs com versionamento, tratamento de erros consistente, cobertura de testes sólida e revisão de código ativa.",
+        "5": "Referência em arquitetura: idempotência, contratos, observabilidade e estratégia de testes em múltiplas camadas."
+      }
+    },
+    {
+      "name": "Resolução de Problemas e Troubleshooting",
+      "description": "Capacidade de diagnosticar incidentes em produção de forma estruturada, da hipótese à causa raiz.",
+      "bars_levels": {
+        "1": "Não consegue descrever nenhum processo de diagnóstico de problemas.",
+        "2": "Depende totalmente de terceiros para investigar problemas; relato vago de incidentes.",
+        "3": "Consegue investigar logs e reproduzir bugs, com método razoável de eliminação de hipóteses.",
+        "4": "Diagnostica incidentes com método claro, usa métricas e logs estruturados, e descreve causa raiz com precisão.",
+        "5": "Conduz post-mortems exemplares, propõe prevenção sistêmica e melhora a observabilidade após cada incidente."
+      }
+    }
+  ]
+}

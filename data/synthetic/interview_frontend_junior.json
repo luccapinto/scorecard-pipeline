@@ -1,0 +1,108 @@
+{
+  "turns": [
+    {
+      "speaker": "Entrevistador",
+      "text": "Oi, tudo bem? Essa é a entrevista técnica para a vaga de Desenvolvedor Frontend Júnior. Fica tranquilo, é uma conversa. Pode começar se apresentando?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Oi, tudo bem sim. Então, eu fiz um bootcamp de programação ano passado, de uns três meses, e desde então eu estou estudando por conta. Fiz alguns projetos seguindo uns vídeos no YouTube, tipo um clone da Netflix e uma lista de tarefas."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Legal. Nesses projetos, o que você construiu de diferente do que o tutorial mostrava?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Hum... então, no clone da Netflix eu mudei as cores e troquei a API de filmes por outra. No de tarefas eu segui bem o vídeo mesmo, porque eu estava começando ainda."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Entendi. Me explica com as suas palavras: o que é código assíncrono em JavaScript?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Assíncrono é... é quando o código roda mais rápido, né? Tipo, ele roda várias linhas ao mesmo tempo em vez de uma por uma, aí a página carrega mais rápido. Eu uso o await para ele esperar quando precisa."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "E o que uma promise representa?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Promise eu sei que usa com o fetch. É tipo uma função que retorna os dados da API. Eu sempre coloco o async e o await e funciona, mas confesso que nunca parei para entender direitinho o que acontece por baixo."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Sem problema. E no React, para que serve o useState?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "O useState guarda as variáveis do componente. Tipo, se eu tenho um contador, eu uso o useState para a variável não sumir. Você usa o set alguma coisa para mudar o valor."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "E o useEffect, quando você usaria?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "O useEffect eu uso para chamar a API. Sempre que eu preciso de um fetch eu ponho dentro do useEffect. Aquele colchete no final eu deixo vazio, porque se não fica chamando infinito. Foi assim que me ensinaram no bootcamp, mas eu não sei bem por que fica infinito sem o colchete."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Você sabe dizer o que faz um componente do React renderizar de novo?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Acho que é quando a página atualiza? Tipo quando você dá F5... ou quando muda de rota. Não tenho certeza, essa parte eu ainda confundo um pouco."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Tá. E TypeScript, você já usou?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Eu tentei uma vez num projeto, mas dava muito erro vermelho no editor, aí eu voltei para o JavaScript normal para conseguir terminar. Eu pretendo aprender, está na minha lista."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "E testes automatizados, você já escreveu algum? Jest, Testing Library?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Ainda não. Eu sei que é importante, o pessoal fala muito de Jest, mas nos meus projetos eu testava manualmente, clicando mesmo. Nunca escrevi um teste de código."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Como você faz hoje quando trava num problema de código?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Primeiro eu jogo o erro no Google, ou pergunto para o ChatGPT. Se não resolver eu geralmente deixo esse projeto de lado e começo outro, porque ficar travado desanima, né?"
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "E feedback? Alguém já revisou seu código, num code review por exemplo?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Não, nunca participei de code review. Os projetos foram todos sozinho. Mas eu acho que eu lidaria bem, eu não sou de levar crítica para o pessoal."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Para fechar: o que você está estudando agora e qual seu plano para os próximos meses?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Agora eu estou vendo uns vídeos de Next.js, porque falam que é o que o mercado pede. Meu plano é fazer mais uns cursos e ir aplicando para vagas. Eu aprendo rápido quando estou trabalhando, eu acho que na prática, com alguém me guiando, eu deslancho."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Entendi. Obrigada pela conversa e pela sinceridade, a gente retorna com o feedback em breve, tá?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Obrigado! Espero que dê certo. Qualquer coisa estou à disposição."
+    }
+  ]
+}

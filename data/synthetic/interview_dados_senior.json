@@ -1,0 +1,92 @@
+{
+  "turns": [
+    {
+      "speaker": "Entrevistador",
+      "text": "Boa tarde! Obrigada por participar do processo para Engenheiro de Dados Sênior. Pode se apresentar rapidamente?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Boa tarde! Sou engenheiro de dados há uns oito anos. Passei por um banco grande, depois uma healthtech, e hoje estou num marketplace onde lidero a plataforma de dados. O nosso lake processa em torno de quatro terabytes por dia entre eventos e cargas de bancos transacionais."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Como está organizada a arquitetura de dados de vocês hoje?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "A gente segue uma arquitetura em camadas no BigQuery. Camada raw com os dados como chegam, staging com limpeza e padronização feita em dbt, e a camada de marts com modelagem dimensional para consumo. Os fatos maiores são particionados por data do evento e clusterizados pela chave de junção mais frequente, o que derrubou bem o custo de scan. Quando redesenhamos a tabela de pedidos, o custo mensal de query dela caiu de uns nove mil dólares para menos de três mil."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Por que modelagem dimensional e não algo como data vault?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "A gente chegou a estudar data vault quando integramos duas aquisições, porque a promessa de flexibilidade de schema era atraente. Mas o custo de complexidade para o time e para os analistas não se pagava: nosso domínio muda menos do que parecia. Star schema é mais simples de consumir, o analista entende fato e dimensão sem treinamento longo. Ficamos com dimensional e resolvemos a integração das aquisições na staging."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Me conta uma situação real de backfill complicado."
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Ano passado descobrimos que um bug no serviço de checkout tinha gravado o campo de desconto errado por três semanas. Precisei reprocessar vinte e um dias da tabela de pedidos, que alimenta o fechamento financeiro. Como as nossas DAGs no Airflow são idempotentes por partição de data, deu para disparar o backfill por intervalo com o próprio Airflow, limitando a concorrência para não estourar os slots do BigQuery. Antes de liberar, rodei uma verificação comparando os agregados por dia entre a versão antiga e a nova numa tabela de auditoria, e só então fizemos o swap. O financeiro validou os números antes da virada."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "E no Spark, qual foi o problema de performance mais difícil que você pegou?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "O clássico skew. Um job de atribuição de marketing juntava a tabela de sessões com a de pedidos pela chave de usuário, e uns três por cento dos usuários, os crawlers e contas de teste, concentravam metade das sessões. Duas tasks ficavam rodando horas enquanto o resto do cluster ficava ocioso. Resolvi em duas frentes: filtrando as contas de serviço antes do join, que era o certo de qualquer forma, e habilitando o adaptive query execution com skew join handling do Spark três. O job caiu de cinco horas para quarenta minutos, no mesmo cluster."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Vocês usam streaming em algum caso?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Uso Kafka, mas vou ser honesto: é a parte da stack que eu menos operei diretamente. Tem um time de plataforma que cuida dos clusters, e o meu contato é mais como consumidor, lendo tópicos para materializar agregados quase em tempo real. Sei os conceitos, consumer groups, offsets, particionamento por chave, mas nunca dimensionei um cluster Kafka nem tratei um rebalance problemático em produção. Se a vaga exige profundidade nisso, é um ponto que eu precisaria desenvolver."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Agradeço a franqueza. E como vocês tratam qualidade de dados?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Três níveis. Primeiro, testes de dbt nas tabelas críticas: unicidade de chave, nulidade, integridade referencial e alguns testes de razoabilidade de negócio, tipo pedido com valor negativo. Segundo, monitoramento de freshness e volume: se uma tabela atrasa mais que o SLA dela ou o volume varia mais de trinta por cento contra a média móvel, dispara alerta no Slack. Terceiro, quando estoura incidente de dados, a gente trata como incidente de verdade, com dono, comunicação para os consumidores afetados e post-mortem. O que ainda não temos maduro é contrato de dados formal com os times produtores, hoje é acordo de cavalheiros e às vezes quebra."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Como você trabalha a evolução das pessoas do seu time?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Tenho dois juniores sob mentoria direta. Com um deles montei um plano de seis meses focado em modelagem: ele começou revisando meus PRs de dbt com um roteiro do que observar, depois passou a modelar marts menores com meu review. Hoje ele é dono de dois marts de logística. A régua que eu uso é: se a pessoa consegue explicar o porquê da modelagem para um analista sem eu estar na sala, ela está pronta."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Se você entrasse aqui amanhã, o que faria nos primeiros noventa dias?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Primeiro mês entendendo o terreno: mapa das fontes, dos consumidores e dos incidentes recorrentes, mais conversas com analytics e com os times produtores. Segundo mês, atacaria a maior dor que aparecer nesse mapa, provavelmente confiabilidade de alguma pipeline crítica, para gerar confiança cedo. Terceiro mês, proporia o desenho de médio prazo, com metas de SLA de dados e um plano de governança incremental. Evitaria chegar propondo re-arquitetura antes de entender por que as coisas são como são."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Alguma pergunta para mim?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Duas. Qual é hoje o maior gargalo da plataforma de vocês, é custo, confiabilidade ou velocidade de entrega? E o time de dados responde para a engenharia ou para o negócio?"
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Boas perguntas, hoje o gargalo é confiabilidade, e o time responde para a engenharia. Muito obrigada pela conversa!"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Eu que agradeço. Fico à disposição para as próximas etapas."
+    }
+  ]
+}

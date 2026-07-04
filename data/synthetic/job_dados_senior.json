@@ -1,0 +1,12 @@
+{
+  "title": "Engenheiro de Dados Sênior",
+  "description": "Responsável por projetar e manter pipelines de dados em larga escala, modelar o data warehouse, garantir qualidade e governança de dados e suportar casos de uso de analytics e machine learning. Stack principal: Airflow, Spark, dbt, BigQuery e Kafka.",
+  "requirements": [
+    "Experiência sólida com orquestração de pipelines (Airflow ou similar)",
+    "Domínio de processamento distribuído com Spark",
+    "Modelagem dimensional e arquitetura de data warehouse (dbt, BigQuery/Snowflake)",
+    "Experiência com streaming de eventos (Kafka, Pub/Sub)",
+    "Práticas de qualidade de dados (testes, contratos, lineage)",
+    "Capacidade de mentoria e comunicação com áreas de negócio"
+  ]
+}

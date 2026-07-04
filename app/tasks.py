@@ -50,13 +50,20 @@ def process_interview(interview_id: str) -> None:
         with Session(engine) as session:
             # Row lock prevents two workers from processing the same interview
             # concurrently (duplicate enqueue, webhook retry, manual requeue).
+            # skip_locked makes a duplicate job exit immediately instead of
+            # blocking behind the worker that holds the lock.
             statement = (
                 select(Interview)
                 .where(Interview.id == interview_id_uuid)
-                .with_for_update()
+                .with_for_update(skip_locked=True)
             )
             interview = session.exec(statement).one_or_none()
             if not interview:
+                if session.get(Interview, interview_id_uuid) is not None:
+                    logger.info(
+                        "Interview is locked by another worker; skipping duplicate job."
+                    )
+                    return
                 err_msg = f"Interview {interview_id_uuid} not found in database"
                 logger.error(err_msg)
                 raise ValueError(err_msg)
