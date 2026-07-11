@@ -1,0 +1,108 @@
+{
+  "turns": [
+    {
+      "speaker": "Entrevistador",
+      "text": "Olá, bem-vindo à nossa entrevista técnica para a vaga de Desenvolvedor Python Pleno. Como você está?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Tudo ótimo, obrigado! Fico feliz pela oportunidade de conversar com vocês sobre o time e o projeto."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Perfeito. Para começar, me conta um pouco da sua trajetória com backend em Python."
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Claro. Trabalho com Python há uns cinco anos. Comecei com Django em uma consultoria, e nos últimos três anos estou numa fintech onde a gente migrou um monolito para serviços menores em FastAPI. Hoje eu cuido principalmente da API de pagamentos e da esteira de processamento assíncrono."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Interessante essa migração. Qual foi o maior desafio técnico nela?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "O maior desafio foi o banco de dados. O monolito tinha queries com cinco ou seis joins que ninguém entendia mais. Eu peguei as dez queries mais lentas pelo pg_stat_statements, rodei explain analyze em cada uma e descobri que a maioria fazia sequential scan em tabelas de milhões de linhas. Criando índices compostos certos e reescrevendo duas queries com CTE, a gente baixou o p95 do endpoint de extrato de mais de dois segundos para uns cento e oitenta milissegundos."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Você mencionou processamento assíncrono. Como é essa esteira hoje?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "A gente usa Redis com RQ para as tarefas em background. Quando entra um webhook de pagamento, a API só valida, persiste o evento e enfileira o job. O worker processa a conciliação, que pode demorar. Configuramos retry com backoff exponencial e uma dead letter queue para os jobs que estouram as tentativas, porque no começo a gente perdia evento silenciosamente quando o provedor externo caía."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "E por que RQ e não Celery?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "A gente avaliou os dois. O Celery dava mais recursos, tipo chains e chords, mas a nossa necessidade era fila simples com retry. O RQ é muito mais fácil de operar e de debugar, dá para inspecionar as chaves direto no Redis. Menos moving parts, menos coisa para quebrar às três da manhã."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Falando em três da manhã... me conta um incidente de produção que você tenha investigado."
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Teve um clássico. Uma segunda-feira o p99 da API foi de duzentos milissegundos para oito segundos. Primeiro olhei o dashboard no Grafana e vi que o pool de conexões do Postgres estava esgotado. A hipótese inicial era volume, mas o tráfego estava normal. Fui nos logs estruturados, filtrei pelo request id das requisições lentas e achei que todas passavam por um endpoint novo que um colega tinha subido na sexta. Ele abria uma transação e fazia uma chamada HTTP externa dentro da transação. Quando o serviço externo ficou lento, as conexões ficaram presas. A correção foi mover a chamada externa para fora da transação e adicionar timeout. Depois escrevi o post-mortem e a gente adicionou um lint no CI para pegar chamada de rede dentro de transação."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Ótimo relato. E como vocês garantem qualidade de código no dia a dia?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Pull request com code review obrigatório de pelo menos uma pessoa, pipeline no GitHub Actions rodando ruff, mypy e a suíte de pytest com cobertura mínima de oitenta por cento. Para as partes críticas, tipo cálculo de tarifas, a gente tem testes de propriedade com hypothesis além dos testes unitários. E teste de integração com Postgres e Redis reais subindo via docker-compose no CI."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Como você estrutura os testes de uma API FastAPI?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Em camadas. Unitário para regra de negócio pura, sem IO. Depois testes de endpoint com o TestClient e dependências fakes injetadas via dependency_overrides. E por fim uma suíte menor de integração de ponta a ponta, com banco real, que roda no merge para a main. O que eu evito é mock demais: se o teste mocka tudo, ele passa sempre e não prova nada."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Você usa Docker no fluxo de desenvolvimento?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Sim, o ambiente local inteiro sobe com docker compose: API, worker, Postgres e Redis. O Dockerfile é multi-stage para a imagem final ficar pequena, e no deploy a gente publica no ECS com blue-green. A paridade entre dev e produção evita muito bug de ambiente."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "E sobre observabilidade, o que vocês têm hoje?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Logs estruturados em JSON com correlation id em todas as requisições, métricas no Prometheus com dashboards no Grafana, e alertas de p95, taxa de erro e profundidade da fila. A profundidade da fila foi aprendizado do incidente: hoje se a fila do RQ passa de mil jobs a gente é alertado antes do usuário sentir."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Se você tivesse que desenhar do zero um endpoint que recebe webhooks de um parceiro, o que não poderia faltar?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Primeiro, validação de assinatura HMAC para garantir a origem. Segundo, idempotência: o parceiro vai reenviar o mesmo evento, então eu guardo um external id com constraint de unicidade e retorno o registro existente em vez de duplicar. Terceiro, responder rápido com duzentos e dois e processar de forma assíncrona na fila. E por fim, uma rotina de reconciliação, porque webhook se perde, sempre."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Excelente. Tem algo que você gostaria de perguntar para a gente?"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Sim. Como é o processo de vocês quando um incidente acontece? Vocês fazem post-mortem sem culpados? E queria entender também como o time decide o que entra de dívida técnica no planejamento."
+    },
+    {
+      "speaker": "Entrevistador",
+      "text": "Ótimas perguntas, a gente faz post-mortem blameless sim, e reserva vinte por cento da sprint para dívida técnica. Bom, da minha parte era isso. Muito obrigado pelo seu tempo!"
+    },
+    {
+      "speaker": "Candidato",
+      "text": "Obrigado a você! Fico no aguardo do feedback sobre a próxima etapa do processo."
+    }
+  ]
+}

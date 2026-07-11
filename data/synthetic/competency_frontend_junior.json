@@ -1,0 +1,48 @@
+{
+  "competencies": [
+    {
+      "name": "Fundamentos de JavaScript e TypeScript",
+      "description": "Domínio dos fundamentos da linguagem: tipos, assincronismo, escopo e closures.",
+      "bars_levels": {
+        "1": "Não consegue explicar conceitos básicos da linguagem (tipos, assincronismo).",
+        "2": "Explica conceitos com imprecisões relevantes e confunde termos fundamentais.",
+        "3": "Explica corretamente promises, escopo e tipos básicos com exemplos simples.",
+        "4": "Domina assincronismo, closures e tipagem, com exemplos concretos de uso.",
+        "5": "Profundidade excepcional para o nível: explica o event loop e decisões de tipagem com clareza."
+      }
+    },
+    {
+      "name": "React e Ecossistema",
+      "description": "Conhecimento prático de React: hooks, gerenciamento de estado e renderização.",
+      "bars_levels": {
+        "1": "Nunca construiu nada com React além de tutorial copiado.",
+        "2": "Usou React mas não sabe explicar hooks básicos nem quando o componente re-renderiza.",
+        "3": "Explica useState/useEffect corretamente e já construiu features pequenas de forma autônoma.",
+        "4": "Entende re-renderização, memoização e levantamento de estado, com projeto próprio relevante.",
+        "5": "Nível raro para júnior: arquitetura de estado bem justificada e contribuições em projetos reais."
+      }
+    },
+    {
+      "name": "Qualidade e Testes",
+      "description": "Familiaridade com testes automatizados de frontend e hábitos de qualidade.",
+      "bars_levels": {
+        "1": "Nunca escreveu um teste automatizado.",
+        "2": "Sabe que testes existem mas nunca aplicou em projeto próprio.",
+        "3": "Escreveu testes básicos com Jest/Testing Library em algum projeto.",
+        "4": "Testa comportamento do usuário (não implementação) e entende o valor de cada camada de teste.",
+        "5": "Cultura de testes exemplar para o nível, com TDD ocasional e testes de acessibilidade."
+      }
+    },
+    {
+      "name": "Colaboração e Aprendizado",
+      "description": "Postura diante de feedback, curiosidade e capacidade de aprender de forma autônoma.",
+      "bars_levels": {
+        "1": "Postura defensiva; não demonstra nenhuma estratégia de aprendizado.",
+        "2": "Aprendizado passivo, depende de cursos prontos e não busca feedback ativamente.",
+        "3": "Recebe bem feedback e demonstra plano de estudo consistente.",
+        "4": "Busca feedback ativamente, estuda com projetos práticos e documenta o que aprende.",
+        "5": "Aprendizado exemplar: contribui em comunidade, ensina outros e itera rápido sobre críticas."
+      }
+    }
+  ]
+}

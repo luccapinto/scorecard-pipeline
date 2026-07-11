@@ -1,0 +1,59 @@
+{
+  "competencies": [
+    {
+      "name": "Modelagem e Arquitetura de Dados",
+      "description": "Capacidade de modelar data warehouses (dimensional, data vault) e desenhar arquiteturas de dados escaláveis.",
+      "bars_levels": {
+        "1": "Não conhece conceitos de modelagem dimensional ou camadas de data warehouse.",
+        "2": "Conhece os termos mas não justifica escolhas de modelagem com trade-offs.",
+        "3": "Modela star schema competente, entende camadas staging/marts e particionamento básico.",
+        "4": "Justifica escolhas com trade-offs claros, domina particionamento/clustering e evolução de schema.",
+        "5": "Desenha arquiteturas completas com contratos de dados, lineage e estratégia de custo bem fundamentada."
+      }
+    },
+    {
+      "name": "Orquestração de Pipelines",
+      "description": "Domínio de orquestradores (Airflow), idempotência, backfills e tratamento de falhas em pipelines batch.",
+      "bars_levels": {
+        "1": "Nunca operou um orquestrador de pipelines.",
+        "2": "Agenda DAGs simples mas não trata falhas nem reprocessamento.",
+        "3": "Constrói DAGs idempotentes com retries e alertas básicos.",
+        "4": "Domina backfills, sensores, SLAs e desenha DAGs com dependências complexas e reprocessamento seguro.",
+        "5": "Define padrões de orquestração para o time inteiro, com frameworks internos e observabilidade completa."
+      }
+    },
+    {
+      "name": "Processamento Distribuído",
+      "description": "Conhecimento profundo de Spark: particionamento, shuffle, skew, tuning de jobs e otimização de custo.",
+      "bars_levels": {
+        "1": "Não sabe explicar como o Spark distribui o processamento.",
+        "2": "Usa Spark como caixa-preta, sem noção de particionamento ou shuffle.",
+        "3": "Entende partições, evita collect em driver e resolve problemas comuns de memória.",
+        "4": "Diagnostica skew e shuffle excessivo, usa broadcast join e tuning de executores com critério.",
+        "5": "Otimiza jobs de larga escala com evidência de custo e latência, e orienta o time em tuning avançado."
+      }
+    },
+    {
+      "name": "Qualidade e Governança de Dados",
+      "description": "Práticas de testes de dados, contratos, monitoramento de freshness e tratamento de incidentes de dados.",
+      "bars_levels": {
+        "1": "Não aplica nenhuma prática de qualidade de dados.",
+        "2": "Depende de reclamação do usuário para descobrir dado quebrado.",
+        "3": "Usa testes de schema e nulidade (dbt tests ou similar) nas tabelas críticas.",
+        "4": "Implementa contratos de dados, monitora freshness/volume e conduz post-mortem de incidentes de dados.",
+        "5": "Estabelece governança completa com lineage, SLAs de dados e cultura de qualidade no time."
+      }
+    },
+    {
+      "name": "Comunicação Técnica e Mentoria",
+      "description": "Clareza ao explicar decisões técnicas para públicos diversos e histórico de desenvolvimento de pessoas.",
+      "bars_levels": {
+        "1": "Não consegue explicar decisões técnicas com clareza.",
+        "2": "Explica apenas para pares técnicos, com dificuldade com áreas de negócio.",
+        "3": "Comunica bem com times técnicos e traduz razoavelmente para o negócio.",
+        "4": "Adapta a comunicação ao público, documenta decisões e mentora juniores ativamente.",
+        "5": "Referência de comunicação: influencia decisões cross-time e forma outros engenheiros seniores."
+      }
+    }
+  ]
+}

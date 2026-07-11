@@ -1,0 +1,10 @@
+{
+  "items": [
+    "O candidato demonstrou experiência prática com otimização de queries no PostgreSQL?",
+    "O candidato mencionou o uso de Redis com filas de tarefas em background (RQ ou Celery)?",
+    "O candidato demonstrou familiaridade com Docker e docker-compose?",
+    "O candidato possui conhecimentos de testes automatizados com pytest?",
+    "O candidato descreveu um incidente real de produção e como o diagnosticou?",
+    "O candidato citou métricas concretas (latência, volume, tempo de resposta) ao descrever resultados?"
+  ]
+}

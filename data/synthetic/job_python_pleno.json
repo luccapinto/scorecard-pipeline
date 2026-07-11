@@ -1,0 +1,12 @@
+{
+  "title": "Desenvolvedor Python Pleno",
+  "description": "Responsável por desenvolver APIs eficientes e robustas utilizando FastAPI e SQLAlchemy, integrar o sistema com filas de mensageria usando Redis e RQ, manter a qualidade da base de código com testes automatizados e participar do ciclo completo de deploy com Docker e CI/CD.",
+  "requirements": [
+    "Experiência com Python e frameworks assíncronos (FastAPI/Tornado/Sanic)",
+    "Conhecimento sólido de SQL e ORMs (SQLAlchemy, SQLModel)",
+    "Experiência com Redis e filas de tarefas em background (RQ, Celery)",
+    "Familiaridade com Docker e Docker Compose",
+    "Conhecimentos em testes automatizados (pytest)",
+    "Experiência com observabilidade (logs estruturados, métricas)"
+  ]
+}

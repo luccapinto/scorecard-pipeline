@@ -1,0 +1,9 @@
+{
+  "items": [
+    "O candidato explicou corretamente a diferença entre código síncrono e assíncrono?",
+    "O candidato soube explicar useState e useEffect com as próprias palavras?",
+    "O candidato já escreveu algum teste automatizado, mesmo que simples?",
+    "O candidato apresentou algum projeto próprio (não tutorial) com detalhes concretos?",
+    "O candidato demonstrou postura receptiva a feedback e um plano de aprendizado?"
+  ]
+}

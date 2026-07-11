@@ -1,53 +1,31 @@
-import os
-import re
 import json
 import logging
-import unicodedata
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
-from pydantic import BaseModel, Field
+from typing import List, Dict, Any, Literal, Optional, Union
+
+from pydantic import BaseModel, Field, ValidationError
 from openai import OpenAI
+from rapidfuzz import fuzz
 
 from app.config import settings
+from app.text_utils import clean_text
 
 logger = logging.getLogger(__name__)
+
 
 # Pydantic schemas for structured scoring output
 class CompetencyEvaluation(BaseModel):
     competency_name: str
-    score: int  # Escala 1 a 5 (BARS)
+    score: int = Field(..., ge=1, le=5, description="Escala 1 a 5 (BARS)")
     justification: str
-    evidence_quote: str  # Citação exata falada na entrevista
+    evidence_quote: str = Field(..., description="Citação exata falada na entrevista")
     evidence_verified: Optional[bool] = None
+
 
 class ScorecardOutput(BaseModel):
     candidate_name: str
-    overall_recommendation: str  # ex: Aprovado, Rejeitado, Próxima Etapa
+    overall_recommendation: Literal["Aprovado", "Rejeitado", "Próxima Etapa"]
     evaluations: List[CompetencyEvaluation]
-
-
-# Helper function to clean and normalize text
-def clean_text(text: str) -> str:
-    """
-    Cleans text for fair substring matching:
-    - Converts to lowercase.
-    - Normalizes Unicode characters (removes accents/diacritics).
-    - Removes punctuation.
-    - Normalizes spacing.
-    """
-    if not text:
-        return ""
-    text = text.lower()
-    # Remove accents/diacritics
-    text = "".join(
-        c for c in unicodedata.normalize("NFD", text)
-        if unicodedata.category(c) != "Mn"
-    )
-    # Replace punctuation with space to prevent words joining
-    text = re.sub(r"[.,?!_#*()\[\]{}:;\-\"'/]", " ", text)
-    # Remove extra whitespace
-    text = " ".join(text.split())
-    return text
 
 
 class ContextAggregator:
@@ -112,43 +90,81 @@ class EvidenceValidator:
     @classmethod
     def validate_evidence(cls, evidence_quote: str, transcription_raw: Union[str, List[Dict[str, Any]]]) -> bool:
         """
-        Validates if the clean version of evidence_quote is a substring of the clean consolidated transcript.
+        Validates the evidence quote against the consolidated transcript.
+        Exact (normalized) substring matches pass directly; otherwise a fuzzy
+        partial match tolerates small transcription errors (real transcripts
+        have WER > 0, so a legitimate quote may differ slightly from the text).
         """
         consolidated = cls.consolidate_transcript(transcription_raw)
         clean_quote = clean_text(evidence_quote)
         clean_transcript = clean_text(consolidated)
-        
-        if not clean_quote:
+
+        if not clean_quote or not clean_transcript:
             return False
-            
-        is_verified = clean_quote in clean_transcript
+
+        if clean_quote in clean_transcript:
+            return True
+
+        similarity = fuzz.partial_ratio(clean_quote, clean_transcript)
+        is_verified = similarity >= settings.evidence_match_threshold
         if not is_verified:
-            logger.warning(f"Hallucinated evidence quote detected: '{evidence_quote}'")
+            logger.warning(
+                f"Hallucinated evidence quote detected (similarity={similarity:.0f}): "
+                f"'{evidence_quote}'"
+            )
+        else:
+            logger.info(f"Evidence quote accepted via fuzzy match (similarity={similarity:.0f})")
         return is_verified
+
+
+def consolidate_dialogue(diarization_raw: Any) -> str:
+    """
+    Renders merged diarization segments ({speaker, text}) as a labeled dialogue.
+    Returns "" when the data has no usable speaker/text pairs.
+    """
+    if not isinstance(diarization_raw, list):
+        return ""
+    lines = []
+    for seg in diarization_raw:
+        if isinstance(seg, dict) and seg.get("text") and seg.get("speaker"):
+            lines.append(f"{seg['speaker']}: {seg['text']}")
+    return "\n".join(lines)
 
 
 class ScoringEngine:
     """
     Scoring Engine using OpenRouter structured Pydantic output.
     """
+    MAX_ATTEMPTS = 3
+
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         if api_key is None:
-            self.api_key = settings.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
+            self.api_key = settings.openrouter_api_key
         else:
             self.api_key = api_key
         self.model = model or settings.openrouter_model or "google/gemini-2.5-flash"
 
-    def evaluate(self, transcription_raw: Any, context: dict, candidate_name: str = "Candidato") -> ScorecardOutput:
+    def evaluate(
+        self,
+        transcription_raw: Any,
+        context: dict,
+        candidate_name: str = "Candidato",
+        diarization_raw: Any = None,
+    ) -> ScorecardOutput:
         """
         Calls OpenRouter to evaluate transcription against job description, competencies, and checklist.
         """
+        if not self.api_key:
+            raise ValueError("OPENROUTER_API_KEY is required to run the ScoringEngine.")
+
         transcript_str = EvidenceValidator.consolidate_transcript(transcription_raw)
-        
-        job_title = context.get("job", {}).get("title", "Cargo não especificado")
-        job_description = context.get("job", {}).get("description", "")
-        job_requirements = context.get("job", {}).get("requirements", [])
-        competencies = context.get("competencies", [])
-        checklist = context.get("checklist", [])
+        dialogue_str = consolidate_dialogue(diarization_raw)
+
+        # The output schema shown to the model is derived from the Pydantic
+        # model so prompt and validation can never drift apart.
+        schema_json = json.dumps(
+            ScorecardOutput.model_json_schema(), indent=2, ensure_ascii=False
+        )
 
         system_prompt = (
             "Você é um avaliador técnico especialista em recrutamento e seleção.\n"
@@ -157,31 +173,26 @@ class ScoringEngine:
             "Crucialmente, para cada nota atribuída a uma competência, você deve fornecer uma citação literal exata (evidence_quote) "
             "retirada diretamente da transcrição da entrevista como evidência da nota.\n"
             "Não parafraseie e nem altere as palavras da citação de evidência. Ela deve ser idêntica ao texto da transcrição.\n"
-            "Sua resposta final deve ser um objeto JSON que obedeça estritamente ao seguinte formato/schema:\n"
-            "{\n"
-            "  \"candidate_name\": \"Nome do candidato extraído da transcrição ou Candidato\",\n"
-            "  \"overall_recommendation\": \"Aprovado\" | \"Rejeitado\" | \"Próxima Etapa\",\n"
-            "  \"evaluations\": [\n"
-            "    {\n"
-            "      \"competency_name\": \"Nome exato da competência\",\n"
-            "      \"score\": 3,\n"
-            "      \"justification\": \"Justificativa técnica da nota baseada na entrevista\",\n"
-            "      \"evidence_quote\": \"Citação exata contida na transcrição\"\n"
-            "    }\n"
-            "  ]\n"
-            "}"
+            "Avalie apenas as falas do candidato, nunca as do entrevistador.\n"
+            "Sua resposta final deve ser um objeto JSON que obedeça estritamente ao seguinte JSON Schema:\n"
+            f"{schema_json}"
+        )
+
+        dialogue_block = (
+            f"\nDiálogo com identificação de falantes:\n\"\"\"\n{dialogue_str}\n\"\"\"\n"
+            if dialogue_str else ""
         )
 
         user_prompt = f"""
-Vaga: {job_title}
-Descrição: {job_description}
-Requisitos: {json.dumps(job_requirements, ensure_ascii=False)}
+Vaga: {context.get("job", {}).get("title", "Cargo não especificado")}
+Descrição: {context.get("job", {}).get("description", "")}
+Requisitos: {json.dumps(context.get("job", {}).get("requirements", []), ensure_ascii=False)}
 
 Competências para Avaliação:
-{json.dumps(competencies, indent=2, ensure_ascii=False)}
+{json.dumps(context.get("competencies", []), indent=2, ensure_ascii=False)}
 
 Checklist de Validação:
-{json.dumps(checklist, indent=2, ensure_ascii=False)}
+{json.dumps(context.get("checklist", []), indent=2, ensure_ascii=False)}
 
 Nome Padrão do Candidato: {candidate_name}
 
@@ -189,58 +200,67 @@ Transcrição da Entrevista:
 \"\"\"
 {transcript_str}
 \"\"\"
-
+{dialogue_block}
 Gere a avaliação do candidato nos termos exigidos. Retorne APENAS o JSON válido.
 """
-
-        # Mock fallback for test environment when API key is missing
-        if not self.api_key:
-            if os.getenv("TEST_MODE") == "true":
-                logger.warning("Test mode detected and OPENROUTER_API_KEY is not set. Returning a mock scorecard.")
-                evals = []
-                for comp in competencies:
-                    comp_name = comp.get("name", "")
-                    if "Comunicação" in comp_name:
-                        quote = "Tudo ótimo, obrigado! Fico feliz pela oportunidade de conversar com vocês sobre o time e o projeto."
-                    else:
-                        quote = "No meu último projeto, eu fui responsável por otimizar algumas queries pesadas no PostgreSQL"
-                    
-                    evals.append(CompetencyEvaluation(
-                        competency_name=comp_name,
-                        score=4,
-                        justification="Demonstrou boa postura e comunicação técnica.",
-                        evidence_quote=quote,
-                        evidence_verified=None
-                    ))
-                return ScorecardOutput(
-                    candidate_name=candidate_name,
-                    overall_recommendation="Aprovado",
-                    evaluations=evals
-                )
-            raise ValueError("OPENROUTER_API_KEY is required to run the ScoringEngine.")
 
         client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=self.api_key,
         )
-        
+
         headers = {
             "HTTP-Referer": "https://github.com/luccapinto/scorecard-pipeline",
             "X-Title": "Interview Scorecard Pipeline"
         }
-        
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            response_format={"type": "json_object"},
-            extra_headers=headers
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "scorecard",
+                "strict": True,
+                "schema": ScorecardOutput.model_json_schema(),
+            },
+        }
+
+        last_error: Optional[Exception] = None
+        for attempt in range(1, self.MAX_ATTEMPTS + 1):
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=0,
+                response_format=response_format,
+                extra_headers=headers
+            )
+            content = response.choices[0].message.content
+            # Scorecards contain candidate PII: never log the payload above DEBUG.
+            logger.debug(f"OpenRouter raw response (attempt {attempt}): {content}")
+
+            try:
+                return ScorecardOutput.model_validate_json(content)
+            except ValidationError as e:
+                last_error = e
+                logger.warning(
+                    f"Scoring response failed schema validation "
+                    f"(attempt {attempt}/{self.MAX_ATTEMPTS}): {e.error_count()} error(s)"
+                )
+                messages = messages + [
+                    {"role": "assistant", "content": content},
+                    {
+                        "role": "user",
+                        "content": (
+                            "A resposta anterior violou o JSON Schema exigido: "
+                            f"{e}\nCorrija e retorne APENAS o JSON válido."
+                        ),
+                    },
+                ]
+
+        raise ValueError(
+            f"ScoringEngine failed to produce a valid scorecard after "
+            f"{self.MAX_ATTEMPTS} attempts: {last_error}"
         )
-        
-        content = response.choices[0].message.content
-        logger.info(f"OpenRouter response: {content}")
-        
-        scorecard = ScorecardOutput.model_validate_json(content)
-        return scorecard

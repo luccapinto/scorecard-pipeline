@@ -1,0 +1,11 @@
+{
+  "title": "Desenvolvedor Frontend Júnior (React)",
+  "description": "Atuar no desenvolvimento de interfaces web com React e TypeScript, consumindo APIs REST, escrevendo testes com Testing Library e colaborando em code reviews com o time de produto.",
+  "requirements": [
+    "Fundamentos sólidos de JavaScript e noções de TypeScript",
+    "Conhecimento de React (hooks, estado, ciclo de vida)",
+    "Noções de consumo de APIs REST e tratamento de erros",
+    "Interesse por testes automatizados (Jest, Testing Library)",
+    "Vontade de aprender e receber feedback em code review"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "items": [
+    "O candidato justificou escolhas de modelagem com trade-offs concretos?",
+    "O candidato descreveu um backfill ou reprocessamento real e como garantiu idempotência?",
+    "O candidato explicou um problema real de skew ou shuffle no Spark e como resolveu?",
+    "O candidato demonstrou experiência prática com streaming (Kafka ou similar)?",
+    "O candidato citou práticas concretas de qualidade de dados (testes, contratos, monitoramento)?",
+    "O candidato deu exemplo real de mentoria ou desenvolvimento de outra pessoa?"
+  ]
+}

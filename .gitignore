@@ -38,5 +38,16 @@ env/
 *.sqlite3
 *.db
 
-# Generated data
-data/
+# Generated data: JSON context files are committed so the pipeline works
+# on a fresh clone; synthesized audio is not (heavy, regenerable).
+data/**/*.wav
+data/**/*.mp3
+
+# Test/lint artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+
+# Redis snapshots
+dump.rdb

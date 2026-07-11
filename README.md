@@ -11,7 +11,7 @@ O pipeline é projetado para processar cada gravação de entrevista individualm
 ```mermaid
 flowchart TD
     subgraph Entrada
-        Webhook[Webhook de Ingestão: POST /webhooks/recording]
+        Webhook[Webhook de Ingestão: POST /webhooks/recording + HMAC]
     end
 
     subgraph Fila & Persistência
@@ -30,11 +30,11 @@ flowchart TD
 
     subgraph Notificação & Decisão
         Slack[Slack Block Kit / Webhook]
-        Approver[Callback de Decisão Humana: POST /interviews/id/action]
+        Approver[Decisão Humana: link com token de uso único ou POST /interviews/id/action]
     end
 
     Webhook -->|1. Salva status recebida| Postgres
-    Webhook -->|2. Enfileira Job| Redis
+    Webhook -->|2. Enfileira Job com timeout+retry| Redis
     Redis -->|3. Consome| Worker
     Worker -->|4. Transcreve| Transcribe
     Worker -->|5. Diariza| Diarize
@@ -47,19 +47,34 @@ flowchart TD
     Approver -->|12. Estado Final| Postgres
 ```
 
+### Máquina de Estados
+
+```
+recebida → transcrevendo → diarizando → pontuando → aguardando_aprovacao → aprovada | rejeitada
+                 ↘             ↘            ↘
+                              falhou  (reprocessável via POST /interviews/{id}/reprocess)
+```
+
+Cada etapa persiste um checkpoint (`transcription_raw`, `diarization_raw`, `scorecard`);
+uma entrevista que falhou retoma exatamente do ponto onde parou, sem repetir
+transcrição/diarização já concluídas. Jobs são enfileirados com `job_timeout`
+dimensionado para áudios longos e retry automático com backoff.
+
 ---
 
 ## 🛠️ Stack Tecnológica
 
 - **Core & API:** Python 3.11 + FastAPI (Uvicorn)
-- **Fila de Mensageria:** Redis + RQ (Redis Queue)
-- **Persistência de Estado:** PostgreSQL (SQLAlchemy / SQLModel)
+- **Fila de Mensageria:** Redis + RQ (Redis Queue) com timeout e retries configurados
+- **Persistência de Estado:** PostgreSQL (SQLAlchemy / SQLModel, JSONB) + Alembic (migrações)
 - **Transcrição (STT):** WhisperX (Local) / OpenAI API (Nuvem)
 - **Diarização (Speakers):** Pyannote.audio (`pyannote/speaker-diarization-3.1`)
-- **Motor de Scoring:** OpenRouter (Model-agnostic via JSON estruturado Pydantic)
+- **Motor de Scoring:** OpenRouter (structured outputs JSON Schema derivado de Pydantic, `temperature=0`)
+- **Validação de Evidência:** matching exato + fuzzy (RapidFuzz) tolerante a WER real
 - **Geração de Dados Sintéticos:** `edge-tts` (TTS multi-voz Azure) + Templates de Vaga estruturados
-- **Notificações:** Slack Webhook (Block Kit) + Webhook Genérico HTTP
-- **Containerização:** Docker + Docker Compose
+- **Notificações:** Slack Webhook (Block Kit) com links de decisão por token de uso único + Webhook Genérico HTTP
+- **Segurança:** HMAC no webhook de ingestão, API key nos endpoints, guarda anti-SSRF no download de áudio
+- **Containerização:** Docker + Docker Compose (API + worker + Postgres + Redis)
 
 ---
 
@@ -72,35 +87,46 @@ Documentamos detalhadamente as principais escolhas técnicas do projeto através
 3. **[ADR 0003 — Escolha de Fila Simples (RQ) vs. Celery](docs/adr/0003-rq-vs-celery.md):** Balanceamento de complexidade e robustez com RQ.
 4. **[ADR 0004 — Risco de Viés em Avaliação de Cultura](docs/adr/0004-avaliacao-cultura-fit-bias.md):** Mitigações éticas baseadas em âncoras BARS, evidências literais obrigatórias e validação humana mandate.
 
+Há também uma revisão completa de arquitetura em [docs/reviews/](docs/reviews/).
+
 ---
 
 ## 📂 Estrutura de Diretórios
 
 ```text
 ├── app/
-│   ├── main.py            # FastAPI Webhooks & endpoints de consulta/callback
-│   ├── models.py          # Tabelas SQLAlchemy da Entrevista e máquina de estados
+│   ├── main.py            # FastAPI Webhooks, decisão humana, health e admin
+│   ├── models.py          # Tabela Interview e máquina de estados (inclui FALHOU)
 │   ├── database.py        # Conexão e sessão do PostgreSQL / SQLite
 │   ├── config.py          # Configurações de variáveis de ambiente (Pydantic Settings)
-│   ├── queue.py           # Conexão com Redis Queue
-│   ├── tasks.py           # Orquestração resiliente da esteira do Worker
-│   ├── audio_processor.py # drivers WhisperX (local), OpenAI (nuvem) e Pyannote
-│   ├── scoring.py         # Leitura de contexto, chamada OpenRouter e validador de evidência
-│   ├── notifications.py   # Adaptadores Slack Block Kit e Webhook genérico
+│   ├── queue.py           # Conexão com Redis Queue + política de timeout/retry
+│   ├── tasks.py           # Orquestração resiliente da esteira do Worker (com lock)
+│   ├── audio_processor.py # Drivers WhisperX (local), OpenAI (nuvem) e Pyannote (com cache de modelos)
+│   ├── scoring.py         # Contexto, OpenRouter (structured outputs) e validador de evidência fuzzy
+│   ├── notifications.py   # Slack Block Kit e Webhook genérico com links de decisão por token
+│   ├── security.py        # Verificação HMAC do webhook e API key
+│   ├── maintenance.py     # Reconciliação de entrevistas órfãs e retenção (LGPD)
+│   ├── logging_config.py  # Logging estruturado com correlation id (interview_id)
+│   ├── text_utils.py      # Normalização de texto compartilhada
 │   └── schemas.py         # Validação Pydantic (Vagas, checklists e scorecards)
+├── alembic/               # Migrações de schema versionadas
 ├── data/
 │   └── synthetic/         # JSONs de vaga e áudios de teste gerados sinteticamente
 ├── docs/
 │   ├── adr/               # Architecture Decision Records (ADRs)
 │   ├── reports/           # Relatório comparativo de Word Error Rate (WER)
+│   ├── reviews/           # Revisões de arquitetura
 │   └── specs/             # Especificações de design SDD (Spec Driven Development)
 ├── scripts/
 │   ├── generate_synthetic.py  # Script CLI gerador de TTS e vaga para testes locais
 │   └── run_benchmark.py       # Script CLI comparador de WER local vs OpenAI
-├── tests/                 # Suíte completa de testes unitários e de integração (pytest)
-├── docker-compose.yml     # PostgreSQL e Redis local
-├── requirements.txt       # Dependências do projeto
-└── run_worker.py          # Script de inicialização do Worker RQ
+├── tests/                 # Suíte de testes (pytest)
+├── Dockerfile             # Imagem da API e do worker
+├── docker-compose.yml     # Stack completa: Postgres, Redis, API e worker
+├── requirements.txt       # Dependências de produção
+├── requirements-dev.txt   # Dependências de desenvolvimento/teste
+├── requirements-ml.txt    # Backends ML pesados (WhisperX, pyannote)
+└── run_worker.py          # Worker RQ com validação fail-fast de dependências
 ```
 
 ---
@@ -120,40 +146,58 @@ Preencha as variáveis conforme necessário:
 - `HF_TOKEN`: Token do Hugging Face com acesso ao pipeline do `pyannote/speaker-diarization-3.1`.
 - `OPENROUTER_API_KEY` ou `OPENAI_API_KEY`: Chaves de API para os modelos de Scoring e Transcrição em nuvem.
 - `SLACK_WEBHOOK_URL` (Opcional): Para testar notificações no Slack.
+- **Em produção, sempre defina:** `WEBHOOK_HMAC_SECRET` (assinatura do webhook), `API_KEY` (auth dos endpoints) e `AUDIO_ALLOWED_DIR` (restringe caminhos locais de áudio).
 
-### 3. Subindo a Infraestrutura (Postgres + Redis)
-Inicie os serviços do banco e fila em background:
+### 3. Opção A — Stack completa com Docker Compose
 ```bash
-docker compose up -d
+docker compose up -d --build
+```
+Sobe Postgres, Redis, a API (com migrações aplicadas automaticamente) e o worker
+(imagem com os backends ML instalados via `INSTALL_ML=true`).
+
+### 3. Opção B — Infra no Docker, app local
+```bash
+docker compose up -d postgres redis
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+# Backends ML locais (WhisperX + pyannote — pesado, requer torch):
+pip install -r requirements-ml.txt
 ```
 
-### 4. Instalando Dependências Locais
-Crie um ambiente virtual e instale as dependências:
+### 4. Aplicando as Migrações de Banco
+O schema é gerenciado pelo Alembic (a API não cria tabelas no startup):
 ```bash
-python -m venv .venv
-# Ativar ambiente virtual
-# No Windows:
-.venv\Scripts\activate
-# No Linux/MacOS:
-source .venv/bin/activate
-
-pip install -r requirements.txt
+alembic upgrade head
 ```
 
-### 5. Gerando os Dados Sintéticos de Teste
-Para simular o pipeline, gere arquivos de áudio multi-voz com termos em inglês e o contexto da vaga:
+### 5. Dataset Sintético de Teste
+O repositório já inclui em `data/synthetic/` os arquivos JSON (vaga, competências
+BARS, checklist e roteiro de diálogo) de **três perfis de entrevista realistas**,
+cobrindo todo o espectro de avaliação:
+
+| Perfil | Vaga | Candidato | Resultado esperado |
+|---|---|---|---|
+| `python_pleno` | Desenvolvedor Python Pleno | Forte (métricas concretas, incidente real, boas práticas) | Aprovado |
+| `dados_senior` | Engenheiro de Dados Sênior | Misto (forte em pipelines/Spark, fraco em streaming) | Próxima Etapa |
+| `frontend_junior` | Frontend Júnior (React) | Fraco (respostas vagas, conceitos confundidos) | Rejeitado |
+
+Para gerar os áudios `.wav` multi-voz (requer acesso à internet para o TTS):
 ```bash
-python scripts/generate_synthetic.py
+python scripts/generate_synthetic.py                       # todos os perfis
+python scripts/generate_synthetic.py --profile dados_senior  # um perfil específico
+python scripts/generate_synthetic.py --skip-audio          # apenas regenerar os JSONs
 ```
-Esse comando irá criar arquivos de áudio `.wav` e metadados JSON na pasta `data/synthetic/`.
 
 ### 6. Executando o Worker RQ e o Servidor Web
-Abra dois terminais (com o ambiente virtual ativo) para subir o Worker e a API:
+Abra dois terminais (com o ambiente virtual ativo):
 
 **Terminal 1 (Worker):**
 ```bash
 python run_worker.py
 ```
+O worker valida na inicialização que o provider configurado é executável
+(whisperx/pyannote instalados, chaves definidas) e falha imediatamente com uma
+mensagem clara caso contrário — nunca processa com dados simulados.
 
 **Terminal 2 (API FastAPI):**
 ```bash
@@ -165,34 +209,45 @@ python -m uvicorn app.main:app --reload
 ## 🧪 Validando o Fluxo de Ponta a Ponta
 
 ### 1. Disparando a Ingestão (Webhook)
-Envie uma requisição simulando que a gravação da entrevista está pronta para processamento assíncrono:
 ```bash
 curl -X POST http://127.0.0.1:8000/webhooks/recording \
   -H "Content-Type: application/json" \
   -d '{
     "recording_url": "data/synthetic/interview_python_pleno.wav",
-    "job_id": "python_pleno"
+    "job_id": "python_pleno",
+    "external_id": "gravacao-001"
   }'
 ```
-O webhook retornará HTTP `202 Accepted` contendo o ID da entrevista gerado. O worker iniciará imediatamente o processamento (transcrição → diarização → scoring → notificação).
+O webhook retorna HTTP `202 Accepted` com o ID da entrevista. `external_id` é a
+chave de idempotência: um webhook reenviado com o mesmo valor retorna a
+entrevista existente em vez de criar duplicata. Com `WEBHOOK_HMAC_SECRET`
+definido, envie também o header `X-Webhook-Signature` (HMAC-SHA256 do corpo).
 
 ### 2. Consultando o Status da Entrevista
-Consulte o andamento do processamento:
 ```bash
-curl http://127.0.0.1:8000/interviews/{INTERVIEW_ID}
+curl -H "X-API-Key: $API_KEY" http://127.0.0.1:8000/interviews/{INTERVIEW_ID}
 ```
-Assim que o status atingir `aguardando_aprovacao`, a notificação de exemplo (Slack ou Webhook) terá sido disparada e o scorecard estará persistido.
+Assim que o status atingir `aguardando_aprovacao`, a notificação terá sido
+disparada com links de decisão de uso único. Se o processamento falhar, o
+status fica `falhou` com o erro em `error_log`.
 
-### 3. Simulando a Decisão Humana (Callback)
-Aprove o scorecard e finalize o processamento:
+### 3. Decisão Humana
+Pelos botões da notificação (link GET com token de uso único), ou via API:
 ```bash
 curl -X POST http://127.0.0.1:8000/interviews/{INTERVIEW_ID}/action \
-  -H "Content-Type: application/json" \
-  -d '{
-    "action": "approve"
-  }'
+  -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" \
+  -d '{"action": "approve"}'
 ```
-Isso atualizará o estado final da entrevista no PostgreSQL para `aprovada`.
+
+### 4. Operação
+```bash
+curl http://127.0.0.1:8000/health                                  # liveness de DB e Redis
+curl -X POST -H "X-API-Key: $API_KEY" \
+  http://127.0.0.1:8000/interviews/{INTERVIEW_ID}/reprocess        # reprocessa entrevista 'falhou'
+curl -X POST -H "X-API-Key: $API_KEY" \
+  http://127.0.0.1:8000/admin/reconcile                            # re-enfileira 'recebida' órfãs
+python -m app.maintenance                                          # reconciliação + retenção via cron
+```
 
 ---
 
@@ -202,18 +257,19 @@ Para avaliar a taxa de erro de palavra (WER) no code-switching PT-EN entre a tra
 ```bash
 python scripts/run_benchmark.py
 ```
-O resultado consolidado e a análise qualitativa detalhada serão salvos em `docs/reports/benchmark_wer_report.md`.
+O resultado será salvo em `docs/reports/benchmark_wer_report.md`. Quando um dos
+motores não está disponível (whisperx ausente ou `OPENAI_API_KEY` indefinida), o
+relatório marca as linhas correspondentes como **SIMULADO (mock)** — esses
+números exercitam o pipeline do relatório, mas não medem acurácia real.
 
 ---
 
 ## 🩺 Executando a Suíte de Testes
 
-Os testes validam de forma unitária e de integração todas as etapas do sistema, simulando resiliência de rede e interrupções inesperadas de worker. Para executá-los:
 ```bash
-# Configurando o PYTHONPATH no Windows PowerShell:
-$env:PYTHONPATH="."
-.venv\Scripts\pytest -v
+# Lint
+ruff check .
 
-# No Linux/MacOS:
-PYTHONPATH=. pytest -v
+# Testes com cobertura
+PYTHONPATH=. pytest --cov=app -v
 ```

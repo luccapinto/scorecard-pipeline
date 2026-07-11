@@ -1,10 +1,10 @@
+import json
 import os
 import tempfile
 import pytest
-import json
 import numpy as np
 import soundfile as sf
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 
 from app.schemas import (
     JobDescription,
@@ -30,7 +30,7 @@ def test_json_schemas_and_sample_data():
     # 2. Competency Framework
     comp_framework = get_sample_competency_framework()
     assert isinstance(comp_framework, CompetencyFramework)
-    assert len(comp_framework.competencies) == 2
+    assert len(comp_framework.competencies) == 4
     assert comp_framework.competencies[0].name == "Comunicação e Code-switching"
     assert 1 in comp_framework.competencies[0].bars_levels
     assert 5 in comp_framework.competencies[0].bars_levels
@@ -46,6 +46,47 @@ def test_json_schemas_and_sample_data():
     assert len(dialogue.turns) > 0
     assert dialogue.turns[0].speaker == "Entrevistador"
     assert dialogue.turns[1].speaker == "Candidato"
+
+def test_all_profiles_are_complete_and_realistic():
+    from scripts.interview_profiles import PROFILES
+
+    assert set(PROFILES) == {"python_pleno", "dados_senior", "frontend_junior"}
+    # The dataset covers the whole scoring spectrum for real testing
+    outcomes = {p.expected_outcome for p in PROFILES.values()}
+    assert outcomes == {"Aprovado", "Próxima Etapa", "Rejeitado"}
+
+    for profile in PROFILES.values():
+        # Substantial dialogues, not toy scripts
+        assert len(profile.dialogue.turns) >= 16, profile.prefix
+        assert {t.speaker for t in profile.dialogue.turns} == {"Entrevistador", "Candidato"}
+        assert profile.dialogue.turns[0].speaker == "Entrevistador"
+
+        # Full BARS anchors for every competency
+        assert len(profile.competencies.competencies) >= 4, profile.prefix
+        for comp in profile.competencies.competencies:
+            assert set(comp.bars_levels.keys()) == {1, 2, 3, 4, 5}, comp.name
+            assert all(len(desc) > 20 for desc in comp.bars_levels.values()), comp.name
+
+        assert len(profile.checklist.items) >= 4, profile.prefix
+        assert len(profile.job.requirements) >= 5, profile.prefix
+
+
+def test_generate_profile_files_roundtrip(tmp_path):
+    from scripts.generate_synthetic import generate_profile_files
+    from scripts.interview_profiles import PROFILES
+
+    profile = PROFILES["dados_senior"]
+    generate_profile_files(profile, str(tmp_path))
+
+    with open(tmp_path / "job_dados_senior.json", encoding="utf-8") as f:
+        JobDescription.model_validate(json.load(f))
+    with open(tmp_path / "competency_dados_senior.json", encoding="utf-8") as f:
+        CompetencyFramework.model_validate(json.load(f))
+    with open(tmp_path / "checklist_dados_senior.json", encoding="utf-8") as f:
+        EvaluationChecklist.model_validate(json.load(f))
+    with open(tmp_path / "interview_dados_senior.json", encoding="utf-8") as f:
+        DialogueScript.model_validate(json.load(f))
+
 
 @pytest.mark.asyncio
 async def test_generate_interview_audio_concatenation():

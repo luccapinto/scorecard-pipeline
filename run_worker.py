@@ -1,27 +1,61 @@
-import redis
 import logging
-from rq import Worker, Queue, Connection
-from app.config import settings
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+import redis
+from rq import Worker, Queue
+
+from app.config import settings
+from app.logging_config import setup_logging
+
 logger = logging.getLogger("rq.worker")
 
-def start_worker():
-    logger.info(f"Connecting to Redis at: {settings.redis_url}")
-    try:
-        redis_conn = redis.from_url(settings.redis_url)
-        # Test connection
-        redis_conn.ping()
-        logger.info("Connected to Redis successfully.")
-    except Exception as e:
-        logger.error(f"Failed to connect to Redis: {e}")
-        raise e
 
-    with Connection(redis_conn):
-        worker = Worker([Queue("default")])
-        logger.info("Starting RQ worker listening on queue: 'default'")
-        worker.work()
+def validate_runtime_dependencies() -> None:
+    """
+    Fail fast at worker startup when the configured providers cannot actually
+    run, instead of silently degrading (or failing mid-job hours later).
+    """
+    provider = settings.transcription_provider.lower()
+    if provider == "openai":
+        if not settings.openai_api_key:
+            raise RuntimeError(
+                "TRANSCRIPTION_PROVIDER=openai requires OPENAI_API_KEY to be set."
+            )
+    else:
+        try:
+            import whisperx  # noqa: F401
+        except ImportError as e:
+            raise RuntimeError(
+                "TRANSCRIPTION_PROVIDER=local requires whisperx "
+                "(pip install -r requirements-ml.txt)."
+            ) from e
+
+    try:
+        import pyannote.audio  # noqa: F401
+    except ImportError as e:
+        raise RuntimeError(
+            "Diarization requires pyannote.audio (pip install -r requirements-ml.txt)."
+        ) from e
+    if not settings.hf_token:
+        raise RuntimeError("Diarization requires HF_TOKEN to be set.")
+
+    if not settings.openrouter_api_key:
+        raise RuntimeError("Scoring requires OPENROUTER_API_KEY to be set.")
+
+
+def start_worker():
+    setup_logging()
+    validate_runtime_dependencies()
+
+    logger.info(f"Connecting to Redis at: {settings.redis_url}")
+    redis_conn = redis.from_url(settings.redis_url)
+    redis_conn.ping()
+    logger.info("Connected to Redis successfully.")
+
+    queue = Queue("default", connection=redis_conn)
+    worker = Worker([queue], connection=redis_conn)
+    logger.info("Starting RQ worker listening on queue: 'default'")
+    worker.work()
+
 
 if __name__ == "__main__":
     start_worker()
