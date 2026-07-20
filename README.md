@@ -1,8 +1,11 @@
 # Pipeline de Scorecard de Entrevistas com IA
 
-[![CI Tests](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/ci.yml)
+[![CI](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/ci.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CodeQL](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/codeql.yml/badge.svg)](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/codeql.yml)
+
+📖 **[Read this in English](README.en.md)**
 
 ## 🏗️ Arquitetura do Sistema
 
@@ -119,7 +122,7 @@ Há também uma revisão completa de arquitetura em [docs/reviews/](docs/reviews
 │   └── specs/             # Especificações de design SDD (Spec Driven Development)
 ├── scripts/
 │   ├── generate_synthetic.py  # Script CLI gerador de TTS e vaga para testes locais
-│   └── run_benchmark.py       # Script CLI comparador de WER local vs OpenAI
+│   └── run_benchmark.py       # Script CLI comparador de WER entre provedores
 ├── tests/                 # Suíte de testes (pytest)
 ├── Dockerfile             # Imagem da API e do worker
 ├── docker-compose.yml     # Stack completa: Postgres, Redis, API e worker
@@ -205,6 +208,27 @@ mensagem clara caso contrário — nunca processa com dados simulados.
 ```bash
 python -m uvicorn app.main:app --reload
 ```
+
+---
+
+## 🖥️ Interface Web (estado atual)
+
+O diretório `frontend/dist/` contém uma SPA React **pré-compilada** que consome
+a API (`GET /jobs`, `GET /recordings`, `GET /interviews`) para acompanhar as
+entrevistas e acionar a decisão humana. No Docker Compose ela é servida por um
+nginx em `http://localhost:5173`, origem que já está na allowlist de CORS da API.
+
+> ⚠️ **Limitação conhecida:** apenas o *bundle* compilado está versionado — o
+> código-fonte da SPA não faz parte deste repositório. Isso significa que a
+> interface **não pode ser auditada, modificada nem recompilada** a partir de um
+> clone. Ela é um artefato de conveniência para demonstrar a esteira, não um
+> componente mantido do projeto.
+>
+> A API é a interface de contrato do sistema e é completamente utilizável sem a
+> SPA (veja a validação de ponta a ponta abaixo e a documentação interativa em
+> `http://localhost:8000/docs`). Publicar o código-fonte da interface — ou
+> substituí-la por uma alternativa aberta — está em aberto como contribuição
+> bem-vinda.
 
 ---
 
@@ -296,23 +320,44 @@ arquivo pelo webhook de ingestão como qualquer outra gravação.
 
 ## 📊 Relatório de Benchmark WER
 
-Para avaliar a taxa de erro de palavra (WER) no code-switching PT-EN entre a transcrição local (WhisperX) e nuvem (OpenAI API), execute o script de benchmark:
+Compara a taxa de erro de palavra (WER) e a preservação de termos técnicos
+(code-switching PT-EN) entre os provedores, **executando-os de verdade**:
+
 ```bash
+# Todos os provedores disponíveis
 python scripts/run_benchmark.py
+
+# Ou escolhendo quais comparar
+python scripts/run_benchmark.py --providers deepgram local
 ```
-O resultado será salvo em `docs/reports/benchmark_wer_report.md`. Quando um dos
-motores não está disponível (whisperx ausente ou `OPENAI_API_KEY` indefinida), o
-relatório marca as linhas correspondentes como **SIMULADO (mock)** — esses
-números exercitam o pipeline do relatório, mas não medem acurácia real.
+
+O relatório é salvo em `docs/reports/benchmark_wer_report.md`. Provedores sem
+dependência ou chave configurada são listados como **pulados**, com o motivo —
+o relatório nunca contém números simulados.
+
+> ⚠️ Os áudios em `data/synthetic/*.wav` **não são versionados** (são pesados e
+> regeneráveis). Gere-os antes de rodar o benchmark:
+> ```bash
+> python scripts/generate_synthetic.py
+> ```
+> Um `.wav` local sobrando de um diálogo antigo invalida silenciosamente o WER;
+> o script detecta essa inconsistência e avisa.
 
 ---
 
 ## 🩺 Executando a Suíte de Testes
 
-```bash
-# Lint
-ruff check .
+Os mesmos gates aplicados pelo CI:
 
-# Testes com cobertura
-PYTHONPATH=. pytest --cov=app -v
+```bash
+ruff check .                                    # lint
+mypy                                            # verificação de tipos
+pytest                                          # suíte completa
+pytest --cov=app --cov-report=term-missing --cov-fail-under=78
+pip-audit -r requirements.txt --strict          # vulnerabilidades conhecidas
 ```
+
+A suíte roda **sem** os backends de ML (`requirements-ml.txt`): as dependências
+pesadas são simuladas de forma determinística. Os testes de integração em
+`tests/test_integration_e2e.py` exigem Postgres e Redis no ar e que o worker de
+produção esteja parado — veja o [CONTRIBUTING.md](CONTRIBUTING.md).
