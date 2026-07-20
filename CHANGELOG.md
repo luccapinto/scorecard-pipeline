@@ -7,6 +7,21 @@ versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Adicionado
+
+- Smoke test da imagem Docker no CI: além de construir, a esteira agora
+  executa a imagem (`import app.main` + Alembic em modo offline), pegando
+  bases incompatíveis que compilam mas quebram em runtime.
+
+### Alterado
+
+- Dependências atualizadas via primeira rodada do Dependabot (GitHub
+  Actions, sqlmodel, psycopg2-binary, ruff, mypy 2.x, pip-audit, whisperx,
+  pyannote.audio 4.x).
+- Dependabot passa a agrupar bumps minor+patch num único PR semanal e a
+  ignorar novas linhas de Python na imagem base — migração de runtime é
+  decisão deliberada, não bump semanal.
+
 ## [0.1.0] - 2026-07-20
 
 Primeira versão marcada do pipeline. A esteira roda de ponta a ponta:

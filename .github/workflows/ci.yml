@@ -157,8 +157,21 @@ jobs:
         with:
           context: .
           push: false
+          load: true
+          tags: scorecard-api:ci
           # The ML extra pulls multi-gigabyte torch wheels; the API image
           # (INSTALL_ML=false) is what CI validates on every PR.
           build-args: INSTALL_ML=false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # A build that succeeds only proves the dependencies install. Run the
+      # image to prove the application actually starts on this base image —
+      # this is what catches a runtime-incompatible base bump (e.g. a new
+      # Python line) that compiles fine but breaks on import.
+      - name: Smoke test the image
+        run: |
+          docker run --rm scorecard-api:ci \
+            python -c "import app.main; print('app imports OK')"
+          docker run --rm scorecard-api:ci \
+            alembic upgrade head --sql > /dev/null && echo "alembic offline OK"
