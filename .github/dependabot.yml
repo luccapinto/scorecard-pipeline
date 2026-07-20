@@ -10,9 +10,10 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     groups:
-      # Patch bumps rarely need individual review; batch them into one PR.
-      patch-updates:
-        update-types: ["patch"]
+      # Minor and patch bumps rarely need individual review; batch them into
+      # one weekly PR. Majors stay individual so each gets its own scrutiny.
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     ignore:
       # torch is pulled transitively by the ML extra and is multi-gigabyte;
       # upgrade it deliberately, not on a weekly cadence.
@@ -36,3 +37,13 @@ updates:
     labels: ["dependencies", "docker"]
     commit-message:
       prefix: "chore(docker)"
+    ignore:
+      # The runtime is deliberately pinned to the 3.11 line (pyproject,
+      # CI and ruff target all match it) and the ML backends are the
+      # slowest ecosystem to support new Python versions. A new Python
+      # line is a deliberate migration, not a weekly bump. Note: for the
+      # `python` image, 3.11 -> 3.14 counts as semver-minor.
+      - dependency-name: "python"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
