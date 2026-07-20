@@ -1,7 +1,7 @@
 # Development, test and benchmarking tooling.
 -r requirements.txt
 pytest==8.2.2
-pytest-asyncio==0.23.7
+pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 ruff==0.15.22
 mypy==2.3.0
