@@ -193,7 +193,7 @@ class Diarizer:
             ("pyannote", "pyannote/speaker-diarization-3.1", self.hf_token),
             lambda: Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
-                use_auth_token=self.hf_token
+                token=self.hf_token
             ),
         )
         if pipeline is None:
@@ -204,8 +204,12 @@ class Diarizer:
 
         diarization = pipeline(str(audio_path))
 
+        # pyannote.audio >=4 returns a DiarizeOutput wrapping the Annotation in
+        # `.speaker_diarization`; older versions return the Annotation directly.
+        annotation = getattr(diarization, "speaker_diarization", diarization)
+
         segments = []
-        for turn, _, speaker in diarization.itertracks(yield_label=True):
+        for turn, _, speaker in annotation.itertracks(yield_label=True):
             segments.append({
                 "speaker": speaker,
                 "start": float(turn.start),

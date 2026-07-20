@@ -1,3 +1,4 @@
+import gc
 import secrets
 import time
 import traceback
@@ -6,6 +7,7 @@ import logging
 
 from sqlmodel import Session, select
 
+from app.audio_processor import clear_model_caches
 from app.database import engine
 from app.logging_config import interview_id_var
 from app.models import (
@@ -122,6 +124,11 @@ def _run_pipeline(session: Session, interview: Interview, audio: AudioSource) ->
     # Step 3: diarization, then DIARIZANDO -> PONTUANDO
     if interview.status == InterviewStatus.DIARIZANDO:
         if not interview.diarization_raw:
+            # Transcription (WhisperX) and diarization (pyannote) models cannot
+            # coexist in the worker's memory budget. Evict the transcription
+            # models before loading the diarizer to avoid an OOM kill.
+            clear_model_caches()
+            gc.collect()
             started = time.monotonic()
             interview.diarization_raw = diarize_audio(
                 audio.path(), transcription_raw=interview.transcription_raw

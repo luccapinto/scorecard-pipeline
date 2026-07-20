@@ -138,6 +138,14 @@ def get_transcriber() -> Any:
     provider = settings.transcription_provider.lower()
     if provider == "openai":
         return OpenAITranscription(api_key=settings.openai_api_key)
+    if provider not in ("local", "openai"):
+        # OpenRouter (and anything else) is not a transcription backend — only
+        # "local" and "openai" are. Warn loudly instead of silently degrading.
+        logger.warning(
+            "Unknown TRANSCRIPTION_PROVIDER=%r; falling back to local WhisperX. "
+            "Valid values are 'local' or 'openai'.",
+            settings.transcription_provider,
+        )
     return LocalTranscription(
         model_name=settings.whisper_model,
         device=settings.whisper_device,

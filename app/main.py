@@ -1,15 +1,19 @@
 import hmac
+import json
 import logging
 import urllib.parse
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select, text
 
+from app.config import settings
 from app.database import get_session, engine
 from app.logging_config import setup_logging
 from app.models import Interview, InterviewStatus, InvalidStateTransitionError
@@ -32,6 +36,15 @@ app = FastAPI(
     description="FastAPI ingestion API for interview recordings",
     version="2.0.0",
     lifespan=lifespan
+)
+
+# Local dev frontend (frontend/dist served separately) talks to the API
+# cross-origin; browsers require an explicit CORS allowlist for that.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -65,9 +78,13 @@ def validate_recording_url(url: str) -> None:
     Raises HTTPException(400) when invalid.
     """
     parsed = urllib.parse.urlparse(url)
+    # A Windows absolute path (e.g. C:\recordings\x.wav) parses with a
+    # single-letter "scheme" (the drive letter). URL schemes are >=2 chars,
+    # so treat a 1-char scheme as a local path, not an unsupported protocol.
+    is_windows_drive = len(parsed.scheme) == 1
     if parsed.scheme in ("http", "https"):
         return
-    if parsed.scheme and parsed.scheme != "file":
+    if parsed.scheme and parsed.scheme != "file" and not is_windows_drive:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported recording URL scheme: '{parsed.scheme}'"
@@ -85,6 +102,40 @@ def validate_recording_url(url: str) -> None:
 def serialize_interview(interview: Interview) -> dict:
     # approval_token is a credential; it must never appear in API responses.
     return interview.model_dump(exclude={"approval_token"})
+
+
+@app.get("/jobs")
+async def list_jobs():
+    """
+    Lists the job profiles available under JOBS_DIR (one job_<id>.json per role).
+    Used by the frontend to populate the 'Vaga' dropdown of the new-interview form.
+    """
+    jobs_dir = Path(settings.jobs_dir)
+    jobs = []
+    for job_file in sorted(jobs_dir.glob("job_*.json")):
+        job_id = job_file.stem[len("job_"):]
+        title = job_id
+        try:
+            with open(job_file, "r", encoding="utf-8") as f:
+                title = json.load(f).get("title", job_id)
+        except (OSError, ValueError):
+            logger.warning("Could not read job profile %s", job_file)
+        jobs.append({"job_id": job_id, "title": title})
+    return jobs
+
+
+@app.get("/recordings")
+async def list_recordings():
+    """
+    Lists the sample audio recordings available under JOBS_DIR. Used by the
+    frontend to populate the 'Gravação' dropdown; the returned path is what the
+    worker receives as recording_url.
+    """
+    jobs_dir = Path(settings.jobs_dir).resolve()
+    recordings = []
+    for audio in sorted(jobs_dir.glob("*.wav")):
+        recordings.append({"path": str(audio), "filename": audio.name})
+    return recordings
 
 
 @app.get("/health")
@@ -166,6 +217,14 @@ async def recording_webhook(
         "interview_id": str(interview.id),
         "status": interview.status.value
     }
+
+
+@app.get("/interviews", dependencies=[Depends(require_api_key)])
+async def list_interviews(session: Session = Depends(get_session)):
+    interviews = session.exec(
+        select(Interview).order_by(Interview.created_at.desc())
+    ).all()
+    return [serialize_interview(i) for i in interviews]
 
 
 @app.get("/interviews/{interview_id}", dependencies=[Depends(require_api_key)])

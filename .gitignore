@@ -10,7 +10,8 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
+# anchored to repo root so it ignores Python's ./dist but not frontend/dist
+/dist/
 downloads/
 eggs/
 .eggs/
@@ -33,6 +34,10 @@ env/
 
 # Environment variables
 .env
+
+# Node / frontend build deps (the built SPA in frontend/dist is committed;
+# its node_modules is not — heavy and regenerable via `npm install`).
+node_modules/
 
 # Database files
 *.sqlite3
