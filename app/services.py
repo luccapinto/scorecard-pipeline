@@ -5,18 +5,18 @@ import socket
 import tempfile
 import urllib.parse
 from pathlib import Path
-from typing import Any, List, Dict, Optional
+from typing import Any
 
 import httpx
 
-from app.config import settings
 from app.audio_processor import (
-    LocalTranscription,
-    OpenAITranscription,
     DeepgramTranscription,
     Diarizer,
-    merge_transcription_and_diarization
+    LocalTranscription,
+    OpenAITranscription,
+    merge_transcription_and_diarization,
 )
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class AudioSource:
     """
     def __init__(self, recording_url: str):
         self.recording_url = recording_url
-        self._path: Optional[Path] = None
+        self._path: Path | None = None
         self._is_temp = False
 
     def path(self) -> Path:
@@ -154,7 +154,7 @@ def get_transcriber() -> Any:
     )
 
 
-def transcribe_audio(audio_path: Path) -> List[Dict[str, Any]]:
+def transcribe_audio(audio_path: Path) -> list[dict[str, Any]]:
     """
     Transcribes a local audio file using the configured provider.
     Returns a list of dicts: [{"text": str, "start": float, "end": float}]
@@ -163,7 +163,7 @@ def transcribe_audio(audio_path: Path) -> List[Dict[str, Any]]:
     return get_transcriber().transcribe(audio_path)
 
 
-def diarize_audio(audio_path: Path, transcription_raw: Any = None) -> List[Dict[str, Any]]:
+def diarize_audio(audio_path: Path, transcription_raw: Any = None) -> list[dict[str, Any]]:
     """
     Runs diarization on a local audio file. If transcription_raw is provided,
     merges speaker labels with transcribed segments.
@@ -218,7 +218,7 @@ def score_interview(transcription: Any, diarization: Any, job_id: str) -> dict:
     Evaluates candidate performance on competencies based on job context files,
     using OpenRouter and running evidence verification.
     """
-    from app.scoring import ContextAggregator, ScoringEngine, EvidenceValidator
+    from app.scoring import ContextAggregator, EvidenceValidator, ScoringEngine
 
     logger.info(f"Loading context files for job_id: {job_id}")
     aggregator = ContextAggregator()
@@ -248,7 +248,9 @@ def notify_approval(interview_id: Any) -> None:
     Dispatches notifications containing the evaluation scorecard.
     """
     import uuid
+
     from sqlmodel import Session
+
     from app.database import engine
     from app.models import Interview
     from app.notifications import NotificationDispatcher

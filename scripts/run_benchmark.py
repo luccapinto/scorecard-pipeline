@@ -1,10 +1,10 @@
-import importlib.util
-import os
-import json
-import time
 import argparse
+import importlib.util
+import json
+import os
+import time
 from pathlib import Path
-from typing import List, Tuple
+
 import jiwer
 
 from app.text_utils import clean_text  # noqa: F401  (re-exported for tests/tooling)
@@ -32,7 +32,7 @@ def calculate_wer_jiwer(reference: str, hypothesis: str) -> float:
     return jiwer.wer(ref_clean, hyp_clean)
 
 
-def analyze_tech_terms(reference: str, hypothesis: str) -> Tuple[List[str], List[str]]:
+def analyze_tech_terms(reference: str, hypothesis: str) -> tuple[list[str], list[str]]:
     """
     Checks which technical terms were successfully transcribed.
     Returns (correct_terms, missed_terms).
@@ -119,7 +119,7 @@ def run_benchmark(audio_dir: Path, output_report_path: Path, force_mock: bool = 
             continue
 
         # Load reference dialogue
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, encoding="utf-8") as f:
             dialogue_data = json.load(f)
 
         turns = dialogue_data.get("turns", [])

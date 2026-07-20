@@ -1,10 +1,11 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
-from sqlmodel import SQLModel, Field, Column
+from typing import Any
+
 from sqlalchemy import JSON, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlmodel import Column, Field, SQLModel
 
 # JSON column that upgrades to JSONB on PostgreSQL (indexable, binary storage)
 # while remaining plain JSON on SQLite (tests).
@@ -12,7 +13,7 @@ JSONVariant = JSON().with_variant(JSONB(), "postgresql")
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class InterviewStatus(str, Enum):
@@ -65,37 +66,37 @@ class Interview(SQLModel, table=True):
         index=True
     )
 
-    transcription_raw: Optional[Any] = Field(
+    transcription_raw: Any | None = Field(
         default=None,
         sa_column=Column(JSONVariant, nullable=True)
     )
-    diarization_raw: Optional[Any] = Field(
+    diarization_raw: Any | None = Field(
         default=None,
         sa_column=Column(JSONVariant, nullable=True)
     )
-    scorecard: Optional[Any] = Field(
+    scorecard: Any | None = Field(
         default=None,
         sa_column=Column(JSONVariant, nullable=True)
     )
 
-    job_id: Optional[str] = Field(
+    job_id: str | None = Field(
         default=None,
         nullable=True,
         index=True
     )
     # Idempotency key supplied by the recording provider; a retried webhook
     # with the same external_id returns the existing interview.
-    external_id: Optional[str] = Field(
+    external_id: str | None = Field(
         default=None,
         sa_column=Column(String, nullable=True, unique=True, index=True)
     )
-    error_log: Optional[str] = Field(
+    error_log: str | None = Field(
         default=None,
         nullable=True
     )
     retry_count: int = Field(default=0, nullable=False)
     # One-time token used by notification action links (approve/reject).
-    approval_token: Optional[str] = Field(
+    approval_token: str | None = Field(
         default=None,
         nullable=True
     )

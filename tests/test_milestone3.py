@@ -1,18 +1,20 @@
 import sys
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from scripts.run_benchmark import clean_text, calculate_wer_jiwer
+import pytest
+
 from app.audio_processor import (
-    merge_transcription_and_diarization,
-    clear_model_caches,
-    LocalTranscription,
-    OpenAITranscription,
     DeepgramTranscription,
     Diarizer,
+    LocalTranscription,
+    OpenAITranscription,
     TranscriptionDependencyError,
+    clear_model_caches,
+    merge_transcription_and_diarization,
 )
+from scripts.run_benchmark import calculate_wer_jiwer, clean_text
+
 
 def test_text_normalization():
     # Test case conversion and accents
@@ -89,10 +91,10 @@ def test_alignment_merge_scenarios():
     assert merged_silent[0]["speaker"] == "UNKNOWN"
 
 
-def test_local_transcription_missing_dependency_fails_fast(monkeypatch):
+def test_local_transcription_missing_dependency_fails_fast(block_imports):
     # Without whisperx installed, the driver must raise instead of silently
     # returning fabricated data.
-    monkeypatch.delitem(sys.modules, "whisperx", raising=False)
+    block_imports("whisperx")
     driver = LocalTranscription(model_name="tiny", device="cpu")
     with pytest.raises(TranscriptionDependencyError):
         driver.transcribe(Path("dummy_audio.wav"))

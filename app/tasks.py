@@ -1,9 +1,9 @@
 import gc
+import logging
 import secrets
 import time
 import traceback
 import uuid
-import logging
 
 from sqlmodel import Session, select
 
@@ -11,13 +11,19 @@ from app.audio_processor import clear_model_caches
 from app.database import engine
 from app.logging_config import interview_id_var
 from app.models import (
+    TERMINAL_STATUSES,
+    VALID_TRANSITIONS,
     Interview,
     InterviewStatus,
     InvalidStateTransitionError,
-    TERMINAL_STATUSES,
-    VALID_TRANSITIONS,
 )
-from app.services import AudioSource, transcribe_audio, diarize_audio, score_interview, notify_approval
+from app.services import (
+    AudioSource,
+    diarize_audio,
+    notify_approval,
+    score_interview,
+    transcribe_audio,
+)
 
 logger = logging.getLogger(__name__)
 

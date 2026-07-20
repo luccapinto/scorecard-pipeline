@@ -15,15 +15,14 @@ Dialogues intentionally include PT-EN code-switching, hesitations and
 concrete metrics so evidence quotes can be validated against realistic text.
 """
 from dataclasses import dataclass, field
-from typing import Dict
 
 from app.schemas import (
-    JobDescription,
     Competency,
     CompetencyFramework,
-    EvaluationChecklist,
-    DialogueTurn,
     DialogueScript,
+    DialogueTurn,
+    EvaluationChecklist,
+    JobDescription,
 )
 
 DEFAULT_INTERVIEWER_VOICE = "pt-BR-FranciscaNeural"
@@ -388,6 +387,6 @@ FRONTEND_JUNIOR = InterviewProfile(
 )
 
 
-PROFILES: Dict[str, InterviewProfile] = {
+PROFILES: dict[str, InterviewProfile] = {
     p.prefix: p for p in (PYTHON_PLENO, DADOS_SENIOR, FRONTEND_JUNIOR)
 }

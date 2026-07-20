@@ -1,12 +1,11 @@
 import json
 import logging
 from contextvars import ContextVar
-from typing import Optional
 
 from app.config import settings
 
 # Correlation id propagated through every log record of a processing job.
-interview_id_var: ContextVar[Optional[str]] = ContextVar("interview_id", default=None)
+interview_id_var: ContextVar[str | None] = ContextVar("interview_id", default=None)
 
 
 class CorrelationFilter(logging.Filter):

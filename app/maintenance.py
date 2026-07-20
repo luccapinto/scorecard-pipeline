@@ -13,18 +13,17 @@ Run periodically (cron) via `python -m app.maintenance`.
 """
 import logging
 from datetime import timedelta
-from typing import List
 
 from sqlmodel import Session, select
 
 from app.config import settings
 from app.database import engine
-from app.models import Interview, InterviewStatus, TERMINAL_STATUSES, utcnow
+from app.models import TERMINAL_STATUSES, Interview, InterviewStatus, utcnow
 
 logger = logging.getLogger(__name__)
 
 
-def requeue_stale_interviews(max_age_minutes: int = None) -> List[str]:
+def requeue_stale_interviews(max_age_minutes: int = None) -> list[str]:
     """Re-enqueues RECEBIDA interviews older than the threshold. Returns their ids."""
     from app.queue import enqueue_processing
 

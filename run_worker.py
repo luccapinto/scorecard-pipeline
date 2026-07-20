@@ -1,7 +1,7 @@
 import logging
 
 import redis
-from rq import Worker, Queue
+from rq import Queue, Worker
 
 from app.config import settings
 from app.logging_config import setup_logging

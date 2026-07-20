@@ -1,5 +1,7 @@
-from typing import Generator
-from sqlmodel import create_engine, SQLModel, Session
+from collections.abc import Generator
+
+from sqlmodel import Session, SQLModel, create_engine
+
 from app.config import settings
 
 # Create engine. If it's sqlite, we add check_same_thread=False argument

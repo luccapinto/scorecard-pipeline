@@ -2,7 +2,7 @@ import logging
 import threading
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from openai import OpenAI
 
@@ -19,7 +19,7 @@ class TranscriptionDependencyError(RuntimeError):
 # Process-wide model caches: loading Whisper/pyannote models takes tens of
 # seconds to minutes, so they must be loaded once per worker process and
 # reused across jobs, never per call.
-_MODEL_CACHE: Dict[Any, Any] = {}
+_MODEL_CACHE: dict[Any, Any] = {}
 _MODEL_CACHE_LOCK = threading.Lock()
 
 
@@ -45,7 +45,7 @@ class BaseTranscription(ABC):
     provides_diarization: bool = False
 
     @abstractmethod
-    def transcribe(self, audio_path: Path) -> List[Dict[str, Any]]:
+    def transcribe(self, audio_path: Path) -> list[dict[str, Any]]:
         """
         Transcribes the audio file.
         Returns a list of dicts: [{"text": str, "start": float, "end": float}]
@@ -61,8 +61,8 @@ class LocalTranscription(BaseTranscription):
         model_name: str = "base",
         device: str = "cpu",
         compute_type: str = "int8",
-        language: Optional[str] = None,
-        batch_size: Optional[int] = None,
+        language: str | None = None,
+        batch_size: int | None = None,
     ):
         self.model_name = model_name
         self.device = device
@@ -70,7 +70,7 @@ class LocalTranscription(BaseTranscription):
         self.language = language or settings.whisper_language
         self.batch_size = batch_size or settings.whisper_batch_size
 
-    def transcribe(self, audio_path: Path) -> List[Dict[str, Any]]:
+    def transcribe(self, audio_path: Path) -> list[dict[str, Any]]:
         logger.info(
             f"Starting local transcription with WhisperX ({self.model_name}) "
             f"on {self.device}, language={self.language}"
@@ -137,7 +137,7 @@ class OpenAITranscription(BaseTranscription):
     def __init__(self, api_key: str = None):
         self.api_key = api_key or settings.openai_api_key
 
-    def transcribe(self, audio_path: Path) -> List[Dict[str, Any]]:
+    def transcribe(self, audio_path: Path) -> list[dict[str, Any]]:
         logger.info("Starting OpenAI transcription via API")
         if not self.api_key:
             raise TranscriptionDependencyError(
@@ -210,7 +210,7 @@ class DeepgramTranscription(BaseTranscription):
         self.language = language or settings.deepgram_language
         self.timeout_seconds = timeout_seconds
 
-    def transcribe(self, audio_path: Path) -> List[Dict[str, Any]]:
+    def transcribe(self, audio_path: Path) -> list[dict[str, Any]]:
         logger.info(
             f"Starting Deepgram transcription+diarization "
             f"({self.model}, language={self.language})"
@@ -286,7 +286,7 @@ class Diarizer:
     def __init__(self, hf_token: str = None):
         self.hf_token = hf_token or settings.hf_token
 
-    def diarize(self, audio_path: Path) -> List[Dict[str, Any]]:
+    def diarize(self, audio_path: Path) -> list[dict[str, Any]]:
         logger.info("Starting speaker diarization with pyannote.audio")
         try:
             from pyannote.audio import Pipeline
@@ -331,9 +331,9 @@ class Diarizer:
 
 
 def merge_transcription_and_diarization(
-    transcription: List[Dict[str, Any]],
-    diarization: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
+    transcription: list[dict[str, Any]],
+    diarization: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """
     Aligns and merges transcription segments with speaker diarization segments.
     For each transcription segment, calculates the overlap with each diarization segment

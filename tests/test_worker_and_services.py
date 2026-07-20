@@ -1,13 +1,13 @@
-import sys
 import importlib
+import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 import run_worker
 from app.config import settings
-from app.services import assert_public_http_url, assert_allowed_local_path, AudioSource
+from app.services import AudioSource, assert_allowed_local_path, assert_public_http_url
 
 
 def test_run_worker_module_imports():
@@ -20,10 +20,10 @@ def test_run_worker_module_imports():
     assert callable(run_worker.start_worker)
 
 
-def test_validate_runtime_dependencies_fails_without_ml_backend(monkeypatch):
+def test_validate_runtime_dependencies_fails_without_ml_backend(monkeypatch, block_imports):
     # With provider=local and whisperx absent, the worker must refuse to start
     # instead of silently processing interviews with fabricated data.
-    monkeypatch.delitem(sys.modules, "whisperx", raising=False)
+    block_imports("whisperx")
     monkeypatch.setattr(settings, "transcription_provider", "local")
     with pytest.raises(RuntimeError, match="whisperx"):
         run_worker.validate_runtime_dependencies()
@@ -58,8 +58,8 @@ def test_validate_runtime_dependencies_deepgram_skips_local_ml(monkeypatch):
 def test_diarize_audio_passthrough_for_speaker_labeled_segments(monkeypatch):
     # Segments that already carry speaker labels (Deepgram) must bypass
     # pyannote entirely, regardless of the configured provider.
-    from app.services import diarize_audio
     from app.audio_processor import Diarizer
+    from app.services import diarize_audio
 
     def boom(self, *a, **kw):
         raise AssertionError("pyannote must not be invoked in passthrough mode")

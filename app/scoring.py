@@ -1,10 +1,10 @@
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Literal, Optional, Union
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, ValidationError
 from openai import OpenAI
+from pydantic import BaseModel, Field, ValidationError
 from rapidfuzz import fuzz
 
 from app.config import settings
@@ -19,23 +19,23 @@ class CompetencyEvaluation(BaseModel):
     score: int = Field(..., ge=1, le=5, description="Escala 1 a 5 (BARS)")
     justification: str
     evidence_quote: str = Field(..., description="Citação exata falada na entrevista")
-    evidence_verified: Optional[bool] = None
+    evidence_verified: bool | None = None
 
 
 class ScorecardOutput(BaseModel):
     candidate_name: str
     overall_recommendation: Literal["Aprovado", "Rejeitado", "Próxima Etapa"]
-    evaluations: List[CompetencyEvaluation]
+    evaluations: list[CompetencyEvaluation]
 
 
 class ContextAggregator:
     """
     Lookup context files locally based on job_id.
     """
-    def __init__(self, jobs_dir: Optional[str] = None):
+    def __init__(self, jobs_dir: str | None = None):
         self.jobs_dir = Path(jobs_dir or settings.jobs_dir)
 
-    def load_context(self, job_id: str) -> Dict[str, Any]:
+    def load_context(self, job_id: str) -> dict[str, Any]:
         """
         Loads job description, competency framework and checklist for a given job_id.
         """
@@ -50,11 +50,11 @@ class ContextAggregator:
         if not checklist_file.exists():
             raise FileNotFoundError(f"Checklist file not found: {checklist_file}")
 
-        with open(job_file, "r", encoding="utf-8") as f:
+        with open(job_file, encoding="utf-8") as f:
             job_data = json.load(f)
-        with open(competency_file, "r", encoding="utf-8") as f:
+        with open(competency_file, encoding="utf-8") as f:
             competency_data = json.load(f)
-        with open(checklist_file, "r", encoding="utf-8") as f:
+        with open(checklist_file, encoding="utf-8") as f:
             checklist_data = json.load(f)
 
         return {
@@ -69,7 +69,7 @@ class EvidenceValidator:
     Validates literal quotes in competency justifications against the raw transcript text.
     """
     @staticmethod
-    def consolidate_transcript(transcription_raw: Union[str, List[Dict[str, Any]], None]) -> str:
+    def consolidate_transcript(transcription_raw: str | list[dict[str, Any]] | None) -> str:
         """
         Consolidates different formats of raw transcription into a single continuous string.
         """
@@ -88,7 +88,7 @@ class EvidenceValidator:
         return ""
 
     @classmethod
-    def validate_evidence(cls, evidence_quote: str, transcription_raw: Union[str, List[Dict[str, Any]]]) -> bool:
+    def validate_evidence(cls, evidence_quote: str, transcription_raw: str | list[dict[str, Any]]) -> bool:
         """
         Validates the evidence quote against the consolidated transcript.
         Exact (normalized) substring matches pass directly; otherwise a fuzzy
@@ -137,7 +137,7 @@ class ScoringEngine:
     """
     MAX_ATTEMPTS = 3
 
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+    def __init__(self, api_key: str | None = None, model: str | None = None):
         if api_key is None:
             self.api_key = settings.openrouter_api_key
         else:
@@ -228,7 +228,7 @@ Gere a avaliação do candidato nos termos exigidos. Retorne APENAS o JSON váli
             },
         }
 
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         for attempt in range(1, self.MAX_ATTEMPTS + 1):
             response = client.chat.completions.create(
                 model=self.model,
