@@ -10,6 +10,13 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     groups:
+      # pytest and its plugins pin each other (pytest-asyncio requires a
+      # pytest range, and vice versa), so a one-at-a-time major bump is
+      # unsatisfiable and always lands red. Group them — including majors —
+      # so they are proposed and validated together.
+      pytest:
+        patterns: ["pytest", "pytest-*"]
+        update-types: ["major", "minor", "patch"]
       # Minor and patch bumps rarely need individual review; batch them into
       # one weekly PR. Majors stay individual so each gets its own scrutiny.
       minor-and-patch:
