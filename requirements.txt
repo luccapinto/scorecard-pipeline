@@ -3,10 +3,10 @@
 # (WhisperX, pyannote) live in requirements-ml.txt.
 fastapi==0.138.0
 uvicorn==0.49.0
-sqlmodel==0.0.22
+sqlmodel==0.0.39
 pydantic-settings==2.3.4
 python-dotenv==1.2.2
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.12
 alembic==1.18.5
 rq==2.10.0
 redis==8.0.1
