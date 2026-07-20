@@ -1,4 +1,4 @@
 # Local ML backends for the worker. Heavy (pulls torch/torchaudio);
 # only needed when TRANSCRIPTION_PROVIDER=local and for diarization.
 whisperx>=3.8.6
-pyannote.audio>=3.1.1
+pyannote.audio>=4.0.7
