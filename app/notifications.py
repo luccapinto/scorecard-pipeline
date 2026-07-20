@@ -185,7 +185,7 @@ class WebhookNotification(BaseNotification):
 class NotificationDispatcher:
     def __init__(self, channels: list[BaseNotification] | None = None):
         if channels is None:
-            self.channels = []
+            self.channels: list[BaseNotification] = []
             if settings.slack_webhook_url:
                 self.channels.append(SlackNotification())
             if settings.notification_webhook_url:

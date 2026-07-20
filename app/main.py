@@ -221,7 +221,9 @@ async def recording_webhook(
 @app.get("/interviews", dependencies=[Depends(require_api_key)])
 async def list_interviews(session: Session = Depends(get_session)):
     interviews = session.exec(
-        select(Interview).order_by(Interview.created_at.desc())
+        # SQLModel annotates created_at as `datetime`, but at runtime the
+        # class attribute is an InstrumentedAttribute that carries .desc().
+        select(Interview).order_by(Interview.created_at.desc())  # type: ignore[attr-defined]
     ).all()
     return [serialize_interview(i) for i in interviews]
 

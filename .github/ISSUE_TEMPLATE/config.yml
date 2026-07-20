@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Vulnerabilidade de segurança
+    url: https://github.com/luccapinto/scorecard-pipeline/security/advisories/new
+    about: Reporte em canal privado. Nunca abra uma issue pública para isso.
+  - name: 💬 Dúvidas de uso
+    url: https://github.com/luccapinto/scorecard-pipeline/discussions
+    about: Perguntas sobre configuração e operação do pipeline.

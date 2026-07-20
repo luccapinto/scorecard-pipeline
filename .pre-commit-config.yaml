@@ -1,0 +1,39 @@
+# Install once with:  pip install pre-commit && pre-commit install
+# Run against everything with:  pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-added-large-files
+        # Audio and model files do not belong in the repository.
+        args: [--maxkb=1024]
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        files: ^app/
+        # Types come from the runtime deps; keep this list in sync with the
+        # imports mypy needs to resolve in app/.
+        additional_dependencies:
+          - pydantic
+          - pydantic-settings
+          - sqlmodel
+          - types-requests
+        args: [--ignore-missing-imports]

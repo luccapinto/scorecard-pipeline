@@ -150,6 +150,14 @@ def _run_pipeline(session: Session, interview: Interview, audio: AudioSource) ->
     # Step 4: scoring, then PONTUANDO -> AGUARDANDO_APROVACAO
     if interview.status == InterviewStatus.PONTUANDO:
         if not interview.scorecard:
+            # job_id is nullable on the model, but scoring resolves the job,
+            # competency and checklist files from it. Fail with a clear
+            # message instead of looking up a "job_None.json" path.
+            if not interview.job_id:
+                raise ValueError(
+                    "Cannot score interview without a job_id: the job context "
+                    "files (job/competency/checklist) cannot be resolved."
+                )
             started = time.monotonic()
             interview.scorecard = score_interview(
                 interview.transcription_raw,

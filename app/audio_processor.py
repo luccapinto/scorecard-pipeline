@@ -134,7 +134,7 @@ class LocalTranscription(BaseTranscription):
 
 class OpenAITranscription(BaseTranscription):
     """Cloud transcription driver using OpenAI's Audio API (whisper-1)."""
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = api_key or settings.openai_api_key
 
     def transcribe(self, audio_path: Path) -> list[dict[str, Any]]:
@@ -152,11 +152,15 @@ class OpenAITranscription(BaseTranscription):
                 response_format="verbose_json"
             )
 
-        segments = []
-        if hasattr(response, "segments"):
-            segments = response.segments
-        elif isinstance(response, dict) and "segments" in response:
-            segments = response["segments"]
+        # `segments` is optional on the SDK model even with verbose_json, so
+        # normalize a missing/None value to an empty list rather than letting
+        # the loop below fail on None.
+        segments: list[Any] = []
+        raw_segments = getattr(response, "segments", None)
+        if raw_segments is not None:
+            segments = list(raw_segments)
+        elif isinstance(response, dict) and response.get("segments"):
+            segments = list(response["segments"])
 
         formatted = []
         for seg in segments:
@@ -200,9 +204,9 @@ class DeepgramTranscription(BaseTranscription):
 
     def __init__(
         self,
-        api_key: str = None,
-        model: str = None,
-        language: str = None,
+        api_key: str | None = None,
+        model: str | None = None,
+        language: str | None = None,
         timeout_seconds: float = 600.0,
     ):
         self.api_key = api_key or settings.deepgram_api_key
@@ -283,7 +287,7 @@ class DeepgramTranscription(BaseTranscription):
 
 class Diarizer:
     """Speaker Diarization driver using pyannote.audio."""
-    def __init__(self, hf_token: str = None):
+    def __init__(self, hf_token: str | None = None):
         self.hf_token = hf_token or settings.hf_token
 
     def diarize(self, audio_path: Path) -> list[dict[str, Any]]:
@@ -347,7 +351,7 @@ def merge_transcription_and_diarization(
         tx_text = tx_seg["text"]
 
         # Calculate overlaps with all speaker segments
-        speaker_overlaps = {}
+        speaker_overlaps: dict[str, float] = {}
         for d_seg in diarization:
             d_start = d_seg["start"]
             d_end = d_seg["end"]
@@ -360,7 +364,7 @@ def merge_transcription_and_diarization(
 
         # Find the speaker with the maximum overlap
         if speaker_overlaps:
-            best_speaker = max(speaker_overlaps, key=speaker_overlaps.get)
+            best_speaker = max(speaker_overlaps, key=lambda s: speaker_overlaps[s])
         else:
             # Fallback speaker if no overlap exists (e.g. silence or mismatch)
             best_speaker = "UNKNOWN"

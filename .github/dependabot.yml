@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Patch bumps rarely need individual review; batch them into one PR.
+      patch-updates:
+        update-types: ["patch"]
+    ignore:
+      # torch is pulled transitively by the ML extra and is multi-gigabyte;
+      # upgrade it deliberately, not on a weekly cadence.
+      - dependency-name: "torch"
+      - dependency-name: "torchaudio"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "chore(ci)"
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "chore(docker)"

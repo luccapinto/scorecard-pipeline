@@ -230,7 +230,10 @@ Gere a avaliação do candidato nos termos exigidos. Retorne APENAS o JSON váli
 
         last_error: Exception | None = None
         for attempt in range(1, self.MAX_ATTEMPTS + 1):
-            response = client.chat.completions.create(
+            # The json_schema response_format is built at runtime from a
+            # Pydantic model, so it cannot match the SDK's TypedDict overloads
+            # statically. The shape is validated by the API itself.
+            response = client.chat.completions.create(  # type: ignore[call-overload]
                 model=self.model,
                 messages=messages,
                 temperature=0,
