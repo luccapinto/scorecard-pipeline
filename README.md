@@ -94,38 +94,82 @@ dimensionado para áudios longos e retry automático com backoff.
 As etapas `TRANSCREVENDO` e `DIARIZANDO` são as mesmas na máquina de estados,
 mas o trabalho interno depende do `TRANSCRIPTION_PROVIDER`:
 
+> **Leia os diagramas assim:** `TRANSCREVENDO` e `DIARIZANDO` (nas faixas
+> superiores) são **estados da esteira**, persistidos no Postgres — não são
+> trabalho. Eles existem igualmente nos dois modos; o que muda é o que roda
+> dentro de cada um, mostrado na faixa inferior. Manter os mesmos estados é
+> proposital: o checkpoint de retomada, o status exposto pela API e o contrato
+> lido pelo scoring não dependem do provider escolhido.
+
 **Modo API (`deepgram`, padrão)** — uma única chamada resolve transcrição e
-diarização; a etapa `DIARIZANDO` vira um passthrough sobre os dados já
-persistidos. Sem modelos locais, sem GPU, sem `HF_TOKEN`:
+diarização. A entrevista **ainda passa pelo estado `DIARIZANDO`**, mas ali não
+roda nenhum modelo nem nova chamada: os speakers já estão nos segmentos, e a
+etapa apenas os grava em `diarization_raw`. Sem modelos locais, sem GPU, sem
+`HF_TOKEN`:
 
 ```mermaid
 flowchart LR
-    Audio[Áudio da entrevista] --> DG[Deepgram nova-3<br/>1 chamada de API<br/>language=multi + diarize]
-    DG -->|"segmentos já com speaker<br/>(SPEAKER_00, SPEAKER_01...)"| TR[(transcription_raw)]
-    TR --> PT{DIARIZANDO}
-    PT -->|"passthrough:<br/>speakers já presentes"| DR[(diarization_raw)]
-    DR --> Scoring[Scoring LLM]
+    subgraph estados ["Estados da esteira (Postgres)"]
+        direction LR
+        S1([TRANSCREVENDO]) --> S2([DIARIZANDO]) --> S3([PONTUANDO])
+    end
+
+    subgraph trabalho ["O que roda em cada estado"]
+        direction LR
+        Audio[Áudio da entrevista] --> DG["Deepgram nova-3<br/>1 chamada de API<br/>language=multi + diarize"]
+        DG --> TR[("transcription_raw<br/>segmentos JÁ com speaker")]
+        TR --> NOOP["no-op: nada a fazer<br/>speakers já presentes<br/>(só copia)"]
+        NOOP --> DR[("diarization_raw")]
+        DR --> Scoring["Scoring LLM"]
+    end
+
+    S1 -.-> DG
+    S2 -.-> NOOP
+    S3 -.-> Scoring
+
+    style NOOP stroke-dasharray: 5 5
 ```
 
 **Modo local (`local`)** — tudo roda na sua infraestrutura; nenhum áudio sai
-dela. WhisperX transcreve e alinha timestamps, pyannote detecta speakers, e um
-merge por sobreposição de timestamps atribui cada fala:
+dela. Aqui o estado `DIARIZANDO` faz trabalho de verdade: pyannote detecta os
+speakers e um merge por sobreposição de timestamps atribui cada fala:
 
 ```mermaid
 flowchart LR
-    Audio[Áudio da entrevista] --> WX[WhisperX<br/>transcrição + alinhamento]
-    WX --> TR[(transcription_raw)]
-    TR --> GC[Evict de modelos<br/>WhisperX + pyannote não<br/>coexistem na memória]
-    GC --> PY[pyannote.audio<br/>speaker-diarization-3.1]
-    PY --> MG[Merge por overlap<br/>de timestamps]
-    MG --> DR[(diarization_raw)]
-    DR --> Scoring[Scoring LLM]
+    subgraph estados ["Estados da esteira (Postgres)"]
+        direction LR
+        S1([TRANSCREVENDO]) --> S2([DIARIZANDO]) --> S3([PONTUANDO])
+    end
+
+    subgraph trabalho ["O que roda em cada estado"]
+        direction LR
+        Audio[Áudio da entrevista] --> WX["WhisperX<br/>transcrição + alinhamento"]
+        WX --> TR[("transcription_raw<br/>segmentos SEM speaker")]
+        TR --> GC["Evict de modelos<br/>WhisperX + pyannote não<br/>coexistem na memória"]
+        GC --> PY["pyannote.audio<br/>speaker-diarization-3.1"]
+        PY --> MG["Merge por overlap<br/>de timestamps"]
+        MG --> DR[("diarization_raw")]
+        DR --> Scoring["Scoring LLM"]
+    end
+
+    S1 -.-> WX
+    S2 -.-> PY
+    S3 -.-> Scoring
 ```
 
-O passthrough do modo API é decidido **pelos dados persistidos** (segmentos com
-chave `speaker`), não pela configuração vigente — uma entrevista retomada após
-troca de provider continua se comportando corretamente. Comparação de custo,
-tempo e requisitos de cada modo na seção
+**Por que o modo API não pula o estado?** Porque os estados são o mecanismo de
+durabilidade da esteira, e mantê-los idênticos entre providers dá três coisas:
+uma entrevista que falhou retoma de `DIARIZANDO` e encontra `diarization_raw`
+gravado, independentemente de quem o produziu; o status exposto pela API não
+vaza qual provider está configurado; e o scoring lê sempre `diarization_raw`,
+sem caminho alternativo. O custo é uma duplicação de dados no modo API
+(`transcription_raw` e `diarization_raw` ficam quase idênticos) — barato para
+o volume de uma entrevista, e o preço de manter uma esteira só em vez de duas.
+
+A decisão de fazer o no-op é tomada **pelos dados persistidos** (segmentos que
+já trazem a chave `speaker`), não pela configuração vigente — uma entrevista
+retomada após troca de provider continua se comportando corretamente.
+Comparação de custo, tempo e requisitos de cada modo na seção
 [Transcrição & Diarização](#%EF%B8%8F-transcrição--diarização--provedores).
 
 ---

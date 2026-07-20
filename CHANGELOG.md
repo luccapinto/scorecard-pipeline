@@ -7,6 +7,19 @@ versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Alterado
+
+- Diagramas da arquitetura dupla redesenhados: os estados da esteira
+  (`TRANSCREVENDO`, `DIARIZANDO`) agora aparecem numa faixa própria,
+  separados do trabalho executado dentro deles. No modo API o passo de
+  diarização é marcado explicitamente como no-op, e o README explica por que
+  o estado não é pulado.
+- Dependências: pytest 9.1.1 + pytest-asyncio 1.4.0 (subidos em par, pois se
+  fixam mutuamente), numpy 2.4.6, soundfile 0.14.0, setup-python v7,
+  build-push-action v7.
+- Dependabot agrupa `pytest` e plugins (majors inclusive), para que bumps
+  interdependentes sejam propostos e validados juntos.
+
 ## [0.1.0] - 2026-07-20
 
 Primeira versão marcada do pipeline. A esteira roda de ponta a ponta:
