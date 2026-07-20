@@ -7,6 +7,32 @@
 
 📖 **[Read this in English](README.en.md)**
 
+Transforma a gravação de uma entrevista técnica em um **scorecard estruturado e
+baseado em evidências verificadas**. Cada citação usada para justificar uma nota
+é conferida contra a transcrição (matching exato + fuzzy) antes de chegar a um
+humano — e a decisão final é **sempre humana**: a esteira para em
+`aguardando_aprovacao` e nunca aprova ou rejeita um candidato sozinha.
+
+A transcrição e a diarização têm **arquitetura dupla**: rodam inteiramente
+**locais** (WhisperX + pyannote, sem enviar áudio a terceiros) ou **via API**
+(Deepgram nova-3, padrão — uma chamada resolve as duas etapas). A troca é uma
+variável de ambiente; a esteira, a máquina de estados e o scoring não mudam.
+
+## 📑 Sumário
+
+- [Arquitetura do Sistema](#%EF%B8%8F-arquitetura-do-sistema)
+- [Stack Tecnológica](#%EF%B8%8F-stack-tecnológica)
+- [Decisões de Arquitetura (ADRs)](#-decisões-de-arquitetura-adrs)
+- [Estrutura de Diretórios](#-estrutura-de-diretórios)
+- [Como Executar Localmente](#-como-executar-localmente)
+- [Interface Web](#%EF%B8%8F-interface-web-estado-atual)
+- [Validando o Fluxo de Ponta a Ponta](#-validando-o-fluxo-de-ponta-a-ponta)
+- [Transcrição & Diarização — Provedores](#%EF%B8%8F-transcrição--diarização--provedores)
+- [Benchmark WER](#-relatório-de-benchmark-wer)
+- [Testes](#-executando-a-suíte-de-testes)
+- [Contribuindo](#-contribuindo)
+- [Licença](#-licença)
+
 ## 🏗️ Arquitetura do Sistema
 
 O pipeline é projetado para processar cada gravação de entrevista individualmente, sem polling periódico e sem loteamento.
@@ -62,6 +88,45 @@ Cada etapa persiste um checkpoint (`transcription_raw`, `diarization_raw`, `scor
 uma entrevista que falhou retoma exatamente do ponto onde parou, sem repetir
 transcrição/diarização já concluídas. Jobs são enfileirados com `job_timeout`
 dimensionado para áudios longos e retry automático com backoff.
+
+### Arquitetura dupla: transcrição e diarização
+
+As etapas `TRANSCREVENDO` e `DIARIZANDO` são as mesmas na máquina de estados,
+mas o trabalho interno depende do `TRANSCRIPTION_PROVIDER`:
+
+**Modo API (`deepgram`, padrão)** — uma única chamada resolve transcrição e
+diarização; a etapa `DIARIZANDO` vira um passthrough sobre os dados já
+persistidos. Sem modelos locais, sem GPU, sem `HF_TOKEN`:
+
+```mermaid
+flowchart LR
+    Audio[Áudio da entrevista] --> DG[Deepgram nova-3<br/>1 chamada de API<br/>language=multi + diarize]
+    DG -->|"segmentos já com speaker<br/>(SPEAKER_00, SPEAKER_01...)"| TR[(transcription_raw)]
+    TR --> PT{DIARIZANDO}
+    PT -->|"passthrough:<br/>speakers já presentes"| DR[(diarization_raw)]
+    DR --> Scoring[Scoring LLM]
+```
+
+**Modo local (`local`)** — tudo roda na sua infraestrutura; nenhum áudio sai
+dela. WhisperX transcreve e alinha timestamps, pyannote detecta speakers, e um
+merge por sobreposição de timestamps atribui cada fala:
+
+```mermaid
+flowchart LR
+    Audio[Áudio da entrevista] --> WX[WhisperX<br/>transcrição + alinhamento]
+    WX --> TR[(transcription_raw)]
+    TR --> GC[Evict de modelos<br/>WhisperX + pyannote não<br/>coexistem na memória]
+    GC --> PY[pyannote.audio<br/>speaker-diarization-3.1]
+    PY --> MG[Merge por overlap<br/>de timestamps]
+    MG --> DR[(diarization_raw)]
+    DR --> Scoring[Scoring LLM]
+```
+
+O passthrough do modo API é decidido **pelos dados persistidos** (segmentos com
+chave `speaker`), não pela configuração vigente — uma entrevista retomada após
+troca de provider continua se comportando corretamente. Comparação de custo,
+tempo e requisitos de cada modo na seção
+[Transcrição & Diarização](#%EF%B8%8F-transcrição--diarização--provedores).
 
 ---
 
@@ -361,3 +426,20 @@ A suíte roda **sem** os backends de ML (`requirements-ml.txt`): as dependência
 pesadas são simuladas de forma determinística. Os testes de integração em
 `tests/test_integration_e2e.py` exigem Postgres e Redis no ar e que o worker de
 produção esteja parado — veja o [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## 🤝 Contribuindo
+
+Contribuições são bem-vindas! Leia o [CONTRIBUTING.md](CONTRIBUTING.md) para o
+fluxo de trabalho (Spec Driven Development, convenções de branch e commit,
+checks locais) e o [Código de Conduta](CODE_OF_CONDUCT.md). Mudanças grandes
+começam por uma issue; decisões arquiteturais viram ADRs em `docs/adr/`.
+
+Vulnerabilidades de segurança seguem o processo privado do
+[SECURITY.md](SECURITY.md) — nunca uma issue pública.
+
+## 📄 Licença
+
+Distribuído sob a licença [MIT](LICENSE).
+

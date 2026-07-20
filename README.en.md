@@ -43,6 +43,43 @@ auto-approves a candidate.
 The interview state machine is durable: each stage checkpoints its result, so a
 failed job resumes from where it stopped rather than reprocessing from scratch.
 
+### Dual architecture: transcription and diarization
+
+The `TRANSCREVENDO` and `DIARIZANDO` stages are identical in the state machine,
+but what happens inside them depends on `TRANSCRIPTION_PROVIDER`:
+
+**API mode (`deepgram`, default)** — one call handles both transcription and
+diarization; the diarization stage becomes a passthrough over the persisted
+data. No local models, no GPU, no `HF_TOKEN`:
+
+```mermaid
+flowchart LR
+    Audio[Interview audio] --> DG[Deepgram nova-3<br/>single API call<br/>language=multi + diarize]
+    DG -->|"segments already carry speakers<br/>(SPEAKER_00, SPEAKER_01...)"| TR[(transcription_raw)]
+    TR --> PT{DIARIZANDO}
+    PT -->|"passthrough:<br/>speakers already present"| DR[(diarization_raw)]
+    DR --> Scoring[LLM scoring]
+```
+
+**Local mode (`local`)** — everything runs on your own infrastructure; no audio
+leaves it. WhisperX transcribes and aligns timestamps, pyannote detects
+speakers, and a timestamp-overlap merge attributes each utterance:
+
+```mermaid
+flowchart LR
+    Audio[Interview audio] --> WX[WhisperX<br/>transcription + alignment]
+    WX --> TR[(transcription_raw)]
+    TR --> GC[Model eviction<br/>WhisperX + pyannote don't<br/>fit in memory together]
+    GC --> PY[pyannote.audio<br/>speaker-diarization-3.1]
+    PY --> MG[Timestamp-overlap<br/>merge]
+    MG --> DR[(diarization_raw)]
+    DR --> Scoring[LLM scoring]
+```
+
+The passthrough is decided from the **persisted data** (segments carrying a
+`speaker` key), not the current config — an interview resumed after a provider
+switch keeps behaving consistently.
+
 ## Transcription providers
 
 Transcription and diarization are pluggable via `TRANSCRIPTION_PROVIDER`:
