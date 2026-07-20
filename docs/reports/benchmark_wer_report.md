@@ -1,38 +1,33 @@
 # Relatório de Benchmark WER (Word Error Rate)
 
-**Data da Execução:** 2026-06-24 14:40:03
-**Objetivo:** Comparação de taxa de erro de transcrição entre WhisperX (Local) e OpenAI API (Nuvem), focando em termos técnicos e code-switching.
+**Data da execução:** 2026-07-20 13:12:45
 
-> ⚠️ **ATENÇÃO: este relatório contém resultados SIMULADOS.**
-> Todas as linhas abaixo foram geradas por corrupção artificial do texto de
-> referência (sem executar nenhum motor de transcrição) e **não medem a
-> acurácia real de nenhum provedor**. Execute `python scripts/run_benchmark.py`
-> com whisperx instalado e/ou `OPENAI_API_KEY` definido para obter uma
-> comparação empírica.
+**Objetivo:** comparar a taxa de erro de transcrição entre os provedores suportados, com atenção a termos técnicos em inglês mesclados ao português (code-switching).
 
-## 1. Média Geral do WER
+Todos os números abaixo vêm de **execuções reais** dos provedores sobre os áudios sintéticos. Provedores indisponíveis são listados como pulados — este relatório nunca contém dados simulados.
 
-| Provedor | Modo | Média WER | Tempo Médio de Processamento |
-| :--- | :---: | :---: | :---: |
-| **WhisperX (Local)** | SIMULADO (mock) | 4.07% | 0.00s |
-| **OpenAI API** | SIMULADO (mock) | 0.00% | 0.00s |
+> ⚠️ **Avisos de integridade do dataset**
+>
+> - `interview_python_pleno.wav`: o áudio tem 104s para 906 palavras de referência (8.7 palavras/s). O .wav provavelmente está desatualizado — regenere com scripts/generate_synthetic.py.
 
-## 2. Resultados por Amostra
+## 1. Média geral
 
-| Arquivo de Teste | WER Local (WhisperX) | Modo Local | WER OpenAI API | Modo OpenAI | Tempo Local | Tempo OpenAI |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| `interview_python_pleno.wav` | 4.07% | SIMULADO (mock) | 0.00% | SIMULADO (mock) | 0.00s | 0.00s |
+| Provedor | WER médio | Tempo médio |
+| :--- | :---: | :---: |
+| **Deepgram nova-3 (API)** | 88.30% | 8.6s |
 
-## 3. Análise Qualitativa de Code-switching & Termos Técnicos
+## 2. Resultados por amostra
 
-Nesta seção, avaliamos o comportamento dos drivers em relação aos termos técnicos em inglês mesclados no português (code-switching).
+| Arquivo | Deepgram nova-3 (API) |
+| :--- | :---: |
+| `interview_python_pleno.wav` | 88.30% (8.6s) |
 
-### Arquivo: `interview_python_pleno.wav`
+## 3. Code-switching e termos técnicos
 
-#### WhisperX (Local) — SIMULADO (mock)
-- **Termos Técnicos Corretamente Transcritos:** `docker`, `redis`, `ci/cd`, `deploy`, `pull request`, `code review`, `solid`, `clean code`, `backend`, `workflow`
-- **Termos Técnicos Incorretos / Omitidos:** `pytest`, `postgres`, `postgresql`, `github actions`, `caching`, `code smell`, `refactoring`
+Termos técnicos em inglês presentes na referência e se cada provedor os preservou na transcrição.
 
-#### OpenAI API — SIMULADO (mock)
-- **Termos Técnicos Corretamente Transcritos:** `pytest`, `docker`, `postgres`, `postgresql`, `redis`, `github actions`, `ci/cd`, `deploy`, `pull request`, `caching`, `code review`, `solid`, `clean code`, `backend`, `workflow`, `code smell`, `refactoring`
-- **Termos Técnicos Incorretos / Omitidos:** Nenhum
+### `interview_python_pleno.wav`
+
+#### Deepgram nova-3 (API)
+- **Preservados:** `docker`, `redis`
+- **Perdidos ou incorretos:** `pytest`, `postgres`, `fastapi`, `github actions`, `deploy`, `merge`, `pull request`, `code review`, `backend`
