@@ -48,37 +48,82 @@ failed job resumes from where it stopped rather than reprocessing from scratch.
 The `TRANSCREVENDO` and `DIARIZANDO` stages are identical in the state machine,
 but what happens inside them depends on `TRANSCRIPTION_PROVIDER`:
 
+> **How to read these diagrams:** `TRANSCREVENDO` and `DIARIZANDO` (top lane)
+> are **pipeline states** persisted in Postgres — they are not work. Both modes
+> go through the same states; what differs is what runs inside them, shown in
+> the bottom lane. Keeping the states identical is deliberate: the resume
+> checkpoint, the status the API exposes, and the contract scoring reads are
+> all independent of the configured provider.
+
 **API mode (`deepgram`, default)** — one call handles both transcription and
-diarization; the diarization stage becomes a passthrough over the persisted
-data. No local models, no GPU, no `HF_TOKEN`:
+diarization. The interview **still passes through the `DIARIZANDO` state**, but
+no model runs and no second call is made there: the speakers are already on the
+segments, and the stage merely writes them to `diarization_raw`. No local
+models, no GPU, no `HF_TOKEN`:
 
 ```mermaid
 flowchart LR
-    Audio[Interview audio] --> DG[Deepgram nova-3<br/>single API call<br/>language=multi + diarize]
-    DG -->|"segments already carry speakers<br/>(SPEAKER_00, SPEAKER_01...)"| TR[(transcription_raw)]
-    TR --> PT{DIARIZANDO}
-    PT -->|"passthrough:<br/>speakers already present"| DR[(diarization_raw)]
-    DR --> Scoring[LLM scoring]
+    subgraph states ["Pipeline states (Postgres)"]
+        direction LR
+        S1([TRANSCREVENDO]) --> S2([DIARIZANDO]) --> S3([PONTUANDO])
+    end
+
+    subgraph work ["What runs in each state"]
+        direction LR
+        Audio[Interview audio] --> DG["Deepgram nova-3<br/>single API call<br/>language=multi + diarize"]
+        DG --> TR[("transcription_raw<br/>segments ALREADY carry speakers")]
+        TR --> NOOP["no-op: nothing to do<br/>speakers already present<br/>(copy only)"]
+        NOOP --> DR[("diarization_raw")]
+        DR --> Scoring["LLM scoring"]
+    end
+
+    S1 -.-> DG
+    S2 -.-> NOOP
+    S3 -.-> Scoring
+
+    style NOOP stroke-dasharray: 5 5
 ```
 
 **Local mode (`local`)** — everything runs on your own infrastructure; no audio
-leaves it. WhisperX transcribes and aligns timestamps, pyannote detects
-speakers, and a timestamp-overlap merge attributes each utterance:
+leaves it. Here the `DIARIZANDO` state does real work: pyannote detects the
+speakers and a timestamp-overlap merge attributes each utterance:
 
 ```mermaid
 flowchart LR
-    Audio[Interview audio] --> WX[WhisperX<br/>transcription + alignment]
-    WX --> TR[(transcription_raw)]
-    TR --> GC[Model eviction<br/>WhisperX + pyannote don't<br/>fit in memory together]
-    GC --> PY[pyannote.audio<br/>speaker-diarization-3.1]
-    PY --> MG[Timestamp-overlap<br/>merge]
-    MG --> DR[(diarization_raw)]
-    DR --> Scoring[LLM scoring]
+    subgraph states ["Pipeline states (Postgres)"]
+        direction LR
+        S1([TRANSCREVENDO]) --> S2([DIARIZANDO]) --> S3([PONTUANDO])
+    end
+
+    subgraph work ["What runs in each state"]
+        direction LR
+        Audio[Interview audio] --> WX["WhisperX<br/>transcription + alignment"]
+        WX --> TR[("transcription_raw<br/>segments WITHOUT speakers")]
+        TR --> GC["Model eviction<br/>WhisperX + pyannote don't<br/>fit in memory together"]
+        GC --> PY["pyannote.audio<br/>speaker-diarization-3.1"]
+        PY --> MG["Timestamp-overlap<br/>merge"]
+        MG --> DR[("diarization_raw")]
+        DR --> Scoring["LLM scoring"]
+    end
+
+    S1 -.-> WX
+    S2 -.-> PY
+    S3 -.-> Scoring
 ```
 
-The passthrough is decided from the **persisted data** (segments carrying a
-`speaker` key), not the current config — an interview resumed after a provider
-switch keeps behaving consistently.
+**Why doesn't API mode skip the state?** Because the states are the pipeline's
+durability mechanism, and keeping them identical across providers buys three
+things: a failed interview resumes at `DIARIZANDO` and finds `diarization_raw`
+written, no matter who produced it; the status the API exposes does not leak
+which provider is configured; and scoring always reads `diarization_raw`, with
+no alternate path. The cost is duplicated data in API mode
+(`transcription_raw` and `diarization_raw` end up nearly identical) — cheap at
+one interview's volume, and the price of maintaining one pipeline instead of
+two.
+
+The no-op is decided from the **persisted data** (segments carrying a `speaker`
+key), not the current config — an interview resumed after a provider switch
+keeps behaving consistently.
 
 ## Transcription providers
 
