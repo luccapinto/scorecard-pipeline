@@ -27,12 +27,12 @@ import redis
 from fastapi.testclient import TestClient
 from rq import Queue, SimpleWorker
 from rq.registry import FailedJobRegistry
-from sqlmodel import SQLModel, Session, create_engine
+from sqlmodel import Session, SQLModel, create_engine
 
 from app.config import settings
 from app.main import app
 from app.models import Interview, InterviewStatus
-from app.scoring import ScorecardOutput, CompetencyEvaluation
+from app.scoring import CompetencyEvaluation, ScorecardOutput
 
 WEBHOOK_SECRET = "e2e-webhook-secret"
 API_KEY = "e2e-api-key"

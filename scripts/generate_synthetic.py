@@ -1,18 +1,14 @@
-import asyncio
 import argparse
+import asyncio
 import json
 import os
 import tempfile
+
+import edge_tts
 import numpy as np
 import soundfile as sf
-import edge_tts
 
-from app.schemas import (
-    JobDescription,
-    CompetencyFramework,
-    EvaluationChecklist,
-    DialogueScript
-)
+from app.schemas import CompetencyFramework, DialogueScript, EvaluationChecklist, JobDescription
 from scripts.interview_profiles import PROFILES, InterviewProfile
 
 # Constants for default configurations

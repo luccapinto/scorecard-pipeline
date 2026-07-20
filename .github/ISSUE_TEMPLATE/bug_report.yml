@@ -1,0 +1,72 @@
+name: 🐛 Reportar bug
+description: Algo não funciona como esperado na esteira de processamento.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar! **Não** use este formulário para vulnerabilidades
+        de segurança — siga o [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o comportamento observado e o que você esperava.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Subir a stack com `docker compose up -d`
+        2. Enviar POST em /webhooks/recording com ...
+        3. A entrevista fica em status ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Em que etapa da esteira o problema ocorre?
+      options:
+        - Ingestão / webhook
+        - Transcrição
+        - Diarização
+        - Scoring / validação de evidências
+        - Notificação / aprovação
+        - Infraestrutura (Docker, migrações, fila)
+        - Não sei
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: TRANSCRIPTION_PROVIDER em uso
+      options:
+        - deepgram (default)
+        - local (WhisperX + pyannote)
+        - openai
+        - Não se aplica
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs relevantes
+      description: >
+        Cole o traceback ou as linhas de log do worker/API.
+        **Remova chaves de API e dados pessoais de candidatos antes de colar.**
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Versão / commit
+      placeholder: "v0.1.0 ou o SHA do commit"
+    validations:
+      required: true

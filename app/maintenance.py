@@ -13,18 +13,17 @@ Run periodically (cron) via `python -m app.maintenance`.
 """
 import logging
 from datetime import timedelta
-from typing import List
 
 from sqlmodel import Session, select
 
 from app.config import settings
 from app.database import engine
-from app.models import Interview, InterviewStatus, TERMINAL_STATUSES, utcnow
+from app.models import TERMINAL_STATUSES, Interview, InterviewStatus, utcnow
 
 logger = logging.getLogger(__name__)
 
 
-def requeue_stale_interviews(max_age_minutes: int = None) -> List[str]:
+def requeue_stale_interviews(max_age_minutes: int | None = None) -> list[str]:
     """Re-enqueues RECEBIDA interviews older than the threshold. Returns their ids."""
     from app.queue import enqueue_processing
 
@@ -43,7 +42,7 @@ def requeue_stale_interviews(max_age_minutes: int = None) -> List[str]:
     return requeued
 
 
-def purge_old_interviews(retention_days: int = None) -> int:
+def purge_old_interviews(retention_days: int | None = None) -> int:
     """Deletes terminal-state interviews older than the retention window."""
     days = retention_days if retention_days is not None else settings.retention_days
     if days <= 0:

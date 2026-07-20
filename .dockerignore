@@ -1,0 +1,53 @@
+# Keep the build context small and prevent local state from leaking into
+# the image. Everything here is either regenerable, secret or irrelevant
+# to the API/worker runtime.
+
+# Version control and CI
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# Secrets and local environment
+.env
+*.env
+!.env.example
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Python caches and build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+/dist/
+
+# Test, lint and coverage artifacts
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local databases and Redis snapshots
+*.db
+*.sqlite3
+dump.rdb
+
+# Heavy or irrelevant assets for the backend image
+data/**/*.wav
+data/**/*.mp3
+data/**/*.m4a
+frontend/
+docs/
+node_modules/
+
+# Agent/editor tooling
+.agents/
+.claude/
+.codex/
+.idea/
+.vscode/

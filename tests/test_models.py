@@ -1,5 +1,6 @@
 import pytest
-from sqlmodel import create_engine, SQLModel, Session, select
+from sqlmodel import Session, SQLModel, create_engine, select
+
 from app.models import Interview, InterviewStatus, InvalidStateTransitionError
 
 # Setup in-memory SQLite engine for tests

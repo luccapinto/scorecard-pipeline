@@ -4,6 +4,8 @@ pytest==8.2.2
 pytest-asyncio==0.23.7
 pytest-cov==7.1.0
 ruff==0.15.20
+mypy==1.14.1
+pip-audit==2.7.3
 jiwer==4.0.0
 edge-tts==7.2.8
 numpy==1.26.4

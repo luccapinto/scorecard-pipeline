@@ -1,14 +1,14 @@
 import uuid
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
-from sqlmodel import SQLModel, Session, create_engine
 from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine
 
-from app.main import app
 from app.database import get_session
+from app.main import app
 from app.models import Interview, InterviewStatus
 from app.tasks import process_interview
 
@@ -156,6 +156,7 @@ def test_webhook_hmac_signature(client, db_session, mock_enqueue, monkeypatch):
     import hashlib
     import hmac as hmac_mod
     import json as json_mod
+
     from app.config import settings
 
     monkeypatch.setattr(settings, "webhook_hmac_secret", "super-secret")

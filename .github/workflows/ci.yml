@@ -1,13 +1,75 @@
-name: CI Tests
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+# Cancel superseded runs on the same branch to save runner minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
+  lint:
+    name: Lint & type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint with ruff
+        run: ruff check --output-format=github .
+
+      - name: Type check with mypy
+        run: mypy
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks needs the full history to scan past commits.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Audit dependencies for known vulnerabilities
+        run: pip-audit -r requirements.txt --strict
+
+      - name: Scan history for leaked secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test:
+    # Single Python version on purpose: this is a deployed application, not a
+    # library. CI matches the runtime of the Docker image (python:3.11-slim).
+    name: Tests
     runs-on: ubuntu-latest
 
     services:
@@ -36,40 +98,67 @@ jobs:
           --health-retries 5
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
-    - name: Install system audio dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libsndfile1
+      - name: Install system audio dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsndfile1
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
 
-    - name: Lint with ruff
-      run: |
-        ruff check .
+      - name: Validate Alembic migrations against PostgreSQL
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/scorecard_test
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
 
-    - name: Validate Alembic migrations against PostgreSQL
-      env:
-        DATABASE_URL: postgresql://postgres:password@localhost:5432/scorecard_test
-      run: |
-        alembic upgrade head
-        alembic downgrade base
-        alembic upgrade head
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/scorecard_test
+          REDIS_URL: redis://localhost:6379/0
+          # The suite mocks every provider; this only exercises the local
+          # branch of the provider switch without needing API keys.
+          TRANSCRIPTION_PROVIDER: local
+        run: |
+          pytest --cov=app --cov-report=term-missing --cov-report=xml \
+                 --cov-fail-under=78
 
-    - name: Run tests with pytest and coverage
-      env:
-        DATABASE_URL: postgresql://postgres:password@localhost:5432/scorecard_test
-        REDIS_URL: redis://localhost:6379/0
-        TRANSCRIPTION_PROVIDER: local
-        PYTHONPATH: .
-      run: |
-        pytest --cov=app --cov-report=term-missing
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The default docker driver cannot export GHA cache; buildx provides
+      # the docker-container driver that can.
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          # The ML extra pulls multi-gigabyte torch wheels; the API image
+          # (INSTALL_ML=false) is what CI validates on every PR.
+          build-args: INSTALL_ML=false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

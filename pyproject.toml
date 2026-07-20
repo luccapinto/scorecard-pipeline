@@ -1,0 +1,95 @@
+[project]
+name = "scorecard-pipeline"
+version = "0.1.0"
+description = "Pipeline de scorecard de entrevistas técnicas com IA: ingestão por webhook, transcrição/diarização plugável e scoring com evidências verificadas."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Lucca Pinto" }]
+keywords = ["interview", "scorecard", "transcription", "diarization", "llm", "hiring"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+
+# Runtime dependencies are pinned in requirements*.txt, which act as the
+# lockfiles for the API image, the worker image and the dev environment.
+# They are the source of truth; this table only declares project metadata.
+dynamic = ["dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/luccapinto/scorecard-pipeline"
+Issues = "https://github.com/luccapinto/scorecard-pipeline/issues"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["alembic/versions", "frontend"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # import sorting
+    "B",    # bugbear (mutable defaults, shadowed builtins, ...)
+    "UP",   # pyupgrade
+    "S",    # bandit security checks
+    "C4",   # comprehensions
+]
+ignore = [
+    "E501",  # line length is enforced by the formatter, not the linter
+    "B008",  # FastAPI's Depends() in defaults is idiomatic
+    # InterviewStatus is deliberately `(str, Enum)` and not `StrEnum`:
+    # StrEnum changes what `str(member)` returns, and these values are
+    # persisted in Postgres. The churn is not worth the risk.
+    "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately use asserts, dummy credentials and fake /tmp paths
+# that are handed to mocks and never touch the filesystem.
+"tests/**" = ["S101", "S105", "S106", "S108"]
+"scripts/**" = ["S311"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers"
+markers = [
+    "integration: needs live infrastructure (Postgres, Redis, a stopped worker)",
+    "requires_ml: needs the local ML backends from requirements-ml.txt",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:torchaudio.*",
+    "ignore::UserWarning:pyannote.*",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/__init__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["app"]
+ignore_missing_imports = true
+# Gradual adoption: the codebase is not fully annotated yet, so start by
+# checking what is annotated and tighten over time.
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true

@@ -5,16 +5,15 @@ import urllib.parse
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select, text
 
 from app.config import settings
-from app.database import get_session, engine
+from app.database import engine, get_session
 from app.logging_config import setup_logging
 from app.models import Interview, InterviewStatus, InvalidStateTransitionError
 from app.queue import enqueue_processing, redis_conn
@@ -63,7 +62,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 class RecordingWebhookPayload(BaseModel):
     recording_url: str = Field(..., description="Local path or remote URL to the audio recording")
     job_id: str = Field(..., description="Job identifier matching configuration data")
-    external_id: Optional[str] = Field(
+    external_id: str | None = Field(
         default=None,
         description="Idempotency key from the recording provider; retried webhooks "
                     "with the same external_id return the existing interview"
@@ -92,11 +91,11 @@ def validate_recording_url(url: str) -> None:
     path = urllib.parse.unquote(parsed.path) if parsed.scheme == "file" else url
     try:
         assert_allowed_local_path(path)
-    except (ValueError, FileNotFoundError):
+    except (ValueError, FileNotFoundError) as e:
         raise HTTPException(
             status_code=400,
             detail="Recording path is not allowed or does not exist"
-        )
+        ) from e
 
 
 def serialize_interview(interview: Interview) -> dict:
@@ -116,7 +115,7 @@ async def list_jobs():
         job_id = job_file.stem[len("job_"):]
         title = job_id
         try:
-            with open(job_file, "r", encoding="utf-8") as f:
+            with open(job_file, encoding="utf-8") as f:
                 title = json.load(f).get("title", job_id)
         except (OSError, ValueError):
             logger.warning("Could not read job profile %s", job_file)
@@ -194,7 +193,7 @@ async def recording_webhook(
         raise HTTPException(
             status_code=500,
             detail="Failed to save interview metadata"
-        )
+        ) from e
 
     # 4. Dispatch job to Redis Queue (RQ). If this fails the interview stays in
     #    RECEBIDA and is picked up by the reconciliation routine
@@ -210,7 +209,7 @@ async def recording_webhook(
             status_code=500,
             detail="Interview stored but processing could not be enqueued; "
                    "it will be retried automatically"
-        )
+        ) from e
 
     # 5. Return HTTP 202
     return {
@@ -222,7 +221,9 @@ async def recording_webhook(
 @app.get("/interviews", dependencies=[Depends(require_api_key)])
 async def list_interviews(session: Session = Depends(get_session)):
     interviews = session.exec(
-        select(Interview).order_by(Interview.created_at.desc())
+        # SQLModel annotates created_at as `datetime`, but at runtime the
+        # class attribute is an InstrumentedAttribute that carries .desc().
+        select(Interview).order_by(Interview.created_at.desc())  # type: ignore[attr-defined]
     ).all()
     return [serialize_interview(i) for i in interviews]
 
@@ -274,7 +275,7 @@ def _apply_decision(session: Session, interview: Interview, action: str) -> Inte
         raise HTTPException(
             status_code=400,
             detail=f"Failed to transition interview status: {str(e)}"
-        )
+        ) from e
     return interview
 
 

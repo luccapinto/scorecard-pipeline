@@ -2,7 +2,7 @@ import logging
 import threading
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from openai import OpenAI
 
@@ -19,7 +19,7 @@ class TranscriptionDependencyError(RuntimeError):
 # Process-wide model caches: loading Whisper/pyannote models takes tens of
 # seconds to minutes, so they must be loaded once per worker process and
 # reused across jobs, never per call.
-_MODEL_CACHE: Dict[Any, Any] = {}
+_MODEL_CACHE: dict[Any, Any] = {}
 _MODEL_CACHE_LOCK = threading.Lock()
 
 
@@ -38,11 +38,18 @@ def _cached(key, loader):
 
 class BaseTranscription(ABC):
     """Base interface for all transcription providers."""
+
+    # True when transcribe() already returns speaker-labeled segments
+    # ({"speaker": ...} on each dict), making the pyannote diarization
+    # stage unnecessary for audio transcribed by this provider.
+    provides_diarization: bool = False
+
     @abstractmethod
-    def transcribe(self, audio_path: Path) -> List[Dict[str, Any]]:
+    def transcribe(self, audio_path: Path) -> list[dict[str, Any]]:
         """
         Transcribes the audio file.
         Returns a list of dicts: [{"text": str, "start": float, "end": float}]
+        (plus "speaker" when provides_diarization is True).
         """
         pass
 
@@ -54,8 +61,8 @@ class LocalTranscription(BaseTranscription):
         model_name: str = "base",
         device: str = "cpu",
         compute_type: str = "int8",
-        language: Optional[str] = None,
-        batch_size: Optional[int] = None,
+        language: str | None = None,
+        batch_size: int | None = None,
     ):
         self.model_name = model_name
         self.device = device
@@ -63,7 +70,7 @@ class LocalTranscription(BaseTranscription):
         self.language = language or settings.whisper_language
         self.batch_size = batch_size or settings.whisper_batch_size
 
-    def transcribe(self, audio_path: Path) -> List[Dict[str, Any]]:
+    def transcribe(self, audio_path: Path) -> list[dict[str, Any]]:
         logger.info(
             f"Starting local transcription with WhisperX ({self.model_name}) "
             f"on {self.device}, language={self.language}"
@@ -127,10 +134,10 @@ class LocalTranscription(BaseTranscription):
 
 class OpenAITranscription(BaseTranscription):
     """Cloud transcription driver using OpenAI's Audio API (whisper-1)."""
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = api_key or settings.openai_api_key
 
-    def transcribe(self, audio_path: Path) -> List[Dict[str, Any]]:
+    def transcribe(self, audio_path: Path) -> list[dict[str, Any]]:
         logger.info("Starting OpenAI transcription via API")
         if not self.api_key:
             raise TranscriptionDependencyError(
@@ -145,11 +152,15 @@ class OpenAITranscription(BaseTranscription):
                 response_format="verbose_json"
             )
 
-        segments = []
-        if hasattr(response, "segments"):
-            segments = response.segments
-        elif isinstance(response, dict) and "segments" in response:
-            segments = response["segments"]
+        # `segments` is optional on the SDK model even with verbose_json, so
+        # normalize a missing/None value to an empty list rather than letting
+        # the loop below fail on None.
+        segments: list[Any] = []
+        raw_segments = getattr(response, "segments", None)
+        if raw_segments is not None:
+            segments = list(raw_segments)
+        elif isinstance(response, dict) and response.get("segments"):
+            segments = list(response["segments"])
 
         formatted = []
         for seg in segments:
@@ -169,12 +180,117 @@ class OpenAITranscription(BaseTranscription):
         return formatted
 
 
+class DeepgramTranscription(BaseTranscription):
+    """
+    Cloud transcription + speaker diarization in a single call, using
+    Deepgram's pre-recorded audio API (nova-3 by default).
+
+    Returned segments carry a "speaker" key (SPEAKER_00, SPEAKER_01, ...
+    matching the pyannote label format), so the separate diarization stage
+    becomes a passthrough for audio transcribed by this provider.
+    """
+
+    provides_diarization = True
+
+    _CONTENT_TYPES = {
+        ".wav": "audio/wav",
+        ".mp3": "audio/mpeg",
+        ".m4a": "audio/mp4",
+        ".ogg": "audio/ogg",
+        ".opus": "audio/ogg",
+        ".flac": "audio/flac",
+        ".webm": "audio/webm",
+    }
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        language: str | None = None,
+        timeout_seconds: float = 600.0,
+    ):
+        self.api_key = api_key or settings.deepgram_api_key
+        self.model = model or settings.deepgram_model
+        self.language = language or settings.deepgram_language
+        self.timeout_seconds = timeout_seconds
+
+    def transcribe(self, audio_path: Path) -> list[dict[str, Any]]:
+        logger.info(
+            f"Starting Deepgram transcription+diarization "
+            f"({self.model}, language={self.language})"
+        )
+        if not self.api_key:
+            raise TranscriptionDependencyError(
+                "DEEPGRAM_API_KEY is required for TRANSCRIPTION_PROVIDER=deepgram."
+            )
+
+        import httpx
+
+        content_type = self._CONTENT_TYPES.get(
+            audio_path.suffix.lower(), "application/octet-stream"
+        )
+        response = httpx.post(
+            "https://api.deepgram.com/v1/listen",
+            params={
+                "model": self.model,
+                "language": self.language,
+                "diarize": "true",
+                "smart_format": "true",
+                "utterances": "true",
+            },
+            headers={
+                "Authorization": f"Token {self.api_key}",
+                "Content-Type": content_type,
+            },
+            content=audio_path.read_bytes(),
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        body = response.json()
+
+        utterances = body.get("results", {}).get("utterances", [])
+        if not utterances:
+            # Distinguish "silent audio" from a malformed/unexpected response.
+            transcript = (
+                body.get("results", {})
+                .get("channels", [{}])[0]
+                .get("alternatives", [{}])[0]
+                .get("transcript", "")
+            )
+            if transcript:
+                raise ValueError(
+                    "Deepgram returned a transcript but no utterances; "
+                    "cannot attribute speakers. Check that diarize/utterances "
+                    "params are supported by the configured model."
+                )
+            logger.warning(
+                "Deepgram returned an empty transcript. If the audio is not "
+                "silent, check DEEPGRAM_LANGUAGE (mismatch yields empty output)."
+            )
+            return []
+
+        formatted = []
+        for utt in utterances:
+            speaker_id = utt.get("speaker")
+            speaker = (
+                f"SPEAKER_{int(speaker_id):02d}"
+                if speaker_id is not None else "UNKNOWN"
+            )
+            formatted.append({
+                "text": str(utt.get("transcript", "")).strip(),
+                "start": float(utt["start"]),
+                "end": float(utt["end"]),
+                "speaker": speaker,
+            })
+        return formatted
+
+
 class Diarizer:
     """Speaker Diarization driver using pyannote.audio."""
-    def __init__(self, hf_token: str = None):
+    def __init__(self, hf_token: str | None = None):
         self.hf_token = hf_token or settings.hf_token
 
-    def diarize(self, audio_path: Path) -> List[Dict[str, Any]]:
+    def diarize(self, audio_path: Path) -> list[dict[str, Any]]:
         logger.info("Starting speaker diarization with pyannote.audio")
         try:
             from pyannote.audio import Pipeline
@@ -219,9 +335,9 @@ class Diarizer:
 
 
 def merge_transcription_and_diarization(
-    transcription: List[Dict[str, Any]],
-    diarization: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
+    transcription: list[dict[str, Any]],
+    diarization: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """
     Aligns and merges transcription segments with speaker diarization segments.
     For each transcription segment, calculates the overlap with each diarization segment
@@ -235,7 +351,7 @@ def merge_transcription_and_diarization(
         tx_text = tx_seg["text"]
 
         # Calculate overlaps with all speaker segments
-        speaker_overlaps = {}
+        speaker_overlaps: dict[str, float] = {}
         for d_seg in diarization:
             d_start = d_seg["start"]
             d_end = d_seg["end"]
@@ -248,7 +364,7 @@ def merge_transcription_and_diarization(
 
         # Find the speaker with the maximum overlap
         if speaker_overlaps:
-            best_speaker = max(speaker_overlaps, key=speaker_overlaps.get)
+            best_speaker = max(speaker_overlaps, key=lambda s: speaker_overlaps[s])
         else:
             # Fallback speaker if no overlap exists (e.g. silence or mismatch)
             best_speaker = "UNKNOWN"

@@ -1,8 +1,10 @@
 import abc
 import logging
 import uuid
+from typing import Any
+
 import httpx
-from typing import Dict, Any, List, Optional
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -14,7 +16,7 @@ class BaseNotification(abc.ABC):
         self,
         interview_id: uuid.UUID,
         scorecard: dict,
-        approval_token: Optional[str] = None,
+        approval_token: str | None = None,
     ) -> None:
         """
         Sends the scorecard notification.
@@ -35,14 +37,14 @@ def build_decision_url(interview_id: uuid.UUID, action: str, approval_token: str
 
 
 class SlackNotification(BaseNotification):
-    def __init__(self, webhook_url: Optional[str] = None):
+    def __init__(self, webhook_url: str | None = None):
         self.webhook_url = webhook_url or settings.slack_webhook_url
 
     def notify_scorecard(
         self,
         interview_id: uuid.UUID,
         scorecard: dict,
-        approval_token: Optional[str] = None,
+        approval_token: str | None = None,
     ) -> None:
         if not self.webhook_url:
             logger.info("Slack webhook URL not configured, skipping notification.")
@@ -155,20 +157,20 @@ class SlackNotification(BaseNotification):
 
 
 class WebhookNotification(BaseNotification):
-    def __init__(self, webhook_url: Optional[str] = None):
+    def __init__(self, webhook_url: str | None = None):
         self.webhook_url = webhook_url or settings.notification_webhook_url
 
     def notify_scorecard(
         self,
         interview_id: uuid.UUID,
         scorecard: dict,
-        approval_token: Optional[str] = None,
+        approval_token: str | None = None,
     ) -> None:
         if not self.webhook_url:
             logger.info("Webhook URL not configured, skipping notification.")
             return
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "interview_id": str(interview_id),
             "scorecard": scorecard
         }
@@ -181,9 +183,9 @@ class WebhookNotification(BaseNotification):
 
 
 class NotificationDispatcher:
-    def __init__(self, channels: Optional[List[BaseNotification]] = None):
+    def __init__(self, channels: list[BaseNotification] | None = None):
         if channels is None:
-            self.channels = []
+            self.channels: list[BaseNotification] = []
             if settings.slack_webhook_url:
                 self.channels.append(SlackNotification())
             if settings.notification_webhook_url:
@@ -195,7 +197,7 @@ class NotificationDispatcher:
         self,
         interview_id: uuid.UUID,
         scorecard: dict,
-        approval_token: Optional[str] = None,
+        approval_token: str | None = None,
     ) -> None:
         for channel in self.channels:
             try:

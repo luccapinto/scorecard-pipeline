@@ -1,18 +1,19 @@
-import os
 import json
-import uuid
+import os
 import tempfile
-import pytest
-from unittest.mock import patch, MagicMock
-from fastapi.testclient import TestClient
-from sqlmodel import SQLModel, Session, create_engine
-from sqlalchemy.pool import StaticPool
+import uuid
+from unittest.mock import MagicMock, patch
 
-from app.main import app
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine
+
 from app.database import get_session
+from app.main import app
 from app.models import Interview, InterviewStatus
-from app.scoring import ContextAggregator, EvidenceValidator, ScoringEngine, ScorecardOutput
 from app.notifications import SlackNotification, WebhookNotification
+from app.scoring import ContextAggregator, EvidenceValidator, ScorecardOutput, ScoringEngine
 
 # SQLite in-memory URL for tests
 TEST_DATABASE_URL = "sqlite:///:memory:"
@@ -486,6 +487,7 @@ def test_reprocess_endpoint_rejects_non_failed(client, db_session):
 
 def test_requeue_stale_interviews(db_session):
     from datetime import timedelta
+
     from app.maintenance import requeue_stale_interviews
     from app.models import utcnow
 
@@ -517,6 +519,7 @@ def test_requeue_stale_interviews(db_session):
 
 def test_purge_old_interviews(db_session):
     from datetime import timedelta
+
     from app.maintenance import purge_old_interviews
     from app.models import utcnow
 

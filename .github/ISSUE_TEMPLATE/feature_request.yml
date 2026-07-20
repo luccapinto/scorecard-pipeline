@@ -1,0 +1,43 @@
+name: ✨ Propor funcionalidade
+description: Sugerir uma melhoria ou nova capacidade para o pipeline.
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Este projeto segue **Spec Driven Development**: mudanças grandes
+        normalmente viram uma spec em `docs/specs/` antes do código. Esta issue
+        é o ponto de partida dessa conversa.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema isso resolve?
+      description: Descreva a dor concreta, não a solução.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solução proposta
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: Inclusive "não fazer nada" — por que não basta?
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Áreas afetadas
+      options:
+        - label: API / webhook
+        - label: Transcrição ou diarização
+        - label: Scoring / prompts / validação de evidências
+        - label: Persistência ou migrações
+        - label: Infraestrutura / CI
+        - label: Documentação

@@ -1,24 +1,21 @@
 import json
 import os
 import tempfile
-import pytest
-import numpy as np
-import soundfile as sf
 from unittest.mock import patch
 
-from app.schemas import (
-    JobDescription,
-    CompetencyFramework,
-    EvaluationChecklist,
-    DialogueScript
-)
+import numpy as np
+import pytest
+import soundfile as sf
+
+from app.schemas import CompetencyFramework, DialogueScript, EvaluationChecklist, JobDescription
 from scripts.generate_synthetic import (
-    get_sample_job_description,
+    generate_interview_audio,
     get_sample_competency_framework,
-    get_sample_evaluation_checklist,
     get_sample_dialogue_script,
-    generate_interview_audio
+    get_sample_evaluation_checklist,
+    get_sample_job_description,
 )
+
 
 def test_json_schemas_and_sample_data():
     # 1. Job Description

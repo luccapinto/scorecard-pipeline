@@ -5,17 +5,18 @@ import socket
 import tempfile
 import urllib.parse
 from pathlib import Path
-from typing import Any, List, Dict, Optional
+from typing import Any
 
 import httpx
 
-from app.config import settings
 from app.audio_processor import (
+    DeepgramTranscription,
+    Diarizer,
     LocalTranscription,
     OpenAITranscription,
-    Diarizer,
-    merge_transcription_and_diarization
+    merge_transcription_and_diarization,
 )
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ class AudioSource:
     """
     def __init__(self, recording_url: str):
         self.recording_url = recording_url
-        self._path: Optional[Path] = None
+        self._path: Path | None = None
         self._is_temp = False
 
     def path(self) -> Path:
@@ -138,12 +139,12 @@ def get_transcriber() -> Any:
     provider = settings.transcription_provider.lower()
     if provider == "openai":
         return OpenAITranscription(api_key=settings.openai_api_key)
-    if provider not in ("local", "openai"):
-        # OpenRouter (and anything else) is not a transcription backend — only
-        # "local" and "openai" are. Warn loudly instead of silently degrading.
+    if provider == "deepgram":
+        return DeepgramTranscription()
+    if provider not in ("local", "openai", "deepgram"):
         logger.warning(
             "Unknown TRANSCRIPTION_PROVIDER=%r; falling back to local WhisperX. "
-            "Valid values are 'local' or 'openai'.",
+            "Valid values are 'local', 'openai' or 'deepgram'.",
             settings.transcription_provider,
         )
     return LocalTranscription(
@@ -153,7 +154,7 @@ def get_transcriber() -> Any:
     )
 
 
-def transcribe_audio(audio_path: Path) -> List[Dict[str, Any]]:
+def transcribe_audio(audio_path: Path) -> list[dict[str, Any]]:
     """
     Transcribes a local audio file using the configured provider.
     Returns a list of dicts: [{"text": str, "start": float, "end": float}]
@@ -162,12 +163,37 @@ def transcribe_audio(audio_path: Path) -> List[Dict[str, Any]]:
     return get_transcriber().transcribe(audio_path)
 
 
-def diarize_audio(audio_path: Path, transcription_raw: Any = None) -> List[Dict[str, Any]]:
+def diarize_audio(audio_path: Path, transcription_raw: Any = None) -> list[dict[str, Any]]:
     """
     Runs diarization on a local audio file. If transcription_raw is provided,
     merges speaker labels with transcribed segments.
     """
     logger.info(f"Diarizing audio file {audio_path}")
+
+    # Providers like Deepgram return transcription segments that already carry
+    # speaker labels; in that case pyannote is unnecessary and this stage is a
+    # passthrough. Detected from the persisted data (not the configured
+    # provider) so that resumed interviews behave consistently even if
+    # TRANSCRIPTION_PROVIDER changed between attempts.
+    if (
+        isinstance(transcription_raw, list)
+        and transcription_raw
+        and all(isinstance(s, dict) and "speaker" in s for s in transcription_raw)
+    ):
+        logger.info(
+            "Transcription segments already contain speaker labels; "
+            "skipping pyannote diarization."
+        )
+        return [
+            {
+                "speaker": s["speaker"],
+                "text": s.get("text", ""),
+                "start": s["start"],
+                "end": s["end"],
+            }
+            for s in transcription_raw
+        ]
+
     diarizer = Diarizer(hf_token=settings.hf_token)
     diarization_result = diarizer.diarize(audio_path)
 
@@ -192,7 +218,7 @@ def score_interview(transcription: Any, diarization: Any, job_id: str) -> dict:
     Evaluates candidate performance on competencies based on job context files,
     using OpenRouter and running evidence verification.
     """
-    from app.scoring import ContextAggregator, ScoringEngine, EvidenceValidator
+    from app.scoring import ContextAggregator, EvidenceValidator, ScoringEngine
 
     logger.info(f"Loading context files for job_id: {job_id}")
     aggregator = ContextAggregator()
@@ -222,7 +248,9 @@ def notify_approval(interview_id: Any) -> None:
     Dispatches notifications containing the evaluation scorecard.
     """
     import uuid
+
     from sqlmodel import Session
+
     from app.database import engine
     from app.models import Interview
     from app.notifications import NotificationDispatcher

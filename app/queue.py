@@ -1,5 +1,6 @@
 import redis
 from rq import Queue, Retry
+
 from app.config import settings
 
 # Create a Redis connection
