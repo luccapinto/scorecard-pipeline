@@ -20,6 +20,11 @@ def validate_runtime_dependencies() -> None:
             raise RuntimeError(
                 "TRANSCRIPTION_PROVIDER=openai requires OPENAI_API_KEY to be set."
             )
+    elif provider == "deepgram":
+        if not settings.deepgram_api_key:
+            raise RuntimeError(
+                "TRANSCRIPTION_PROVIDER=deepgram requires DEEPGRAM_API_KEY to be set."
+            )
     else:
         try:
             import whisperx  # noqa: F401
@@ -29,14 +34,19 @@ def validate_runtime_dependencies() -> None:
                 "(pip install -r requirements-ml.txt)."
             ) from e
 
-    try:
-        import pyannote.audio  # noqa: F401
-    except ImportError as e:
-        raise RuntimeError(
-            "Diarization requires pyannote.audio (pip install -r requirements-ml.txt)."
-        ) from e
-    if not settings.hf_token:
-        raise RuntimeError("Diarization requires HF_TOKEN to be set.")
+    # Deepgram bundles speaker diarization with transcription, so pyannote is
+    # only required for the providers that return plain segments. (Interviews
+    # resumed after a provider switch may still lack speakers and fail at the
+    # diarization stage — an accepted edge case.)
+    if provider != "deepgram":
+        try:
+            import pyannote.audio  # noqa: F401
+        except ImportError as e:
+            raise RuntimeError(
+                "Diarization requires pyannote.audio (pip install -r requirements-ml.txt)."
+            ) from e
+        if not settings.hf_token:
+            raise RuntimeError("Diarization requires HF_TOKEN to be set.")
 
     if not settings.openrouter_api_key:
         raise RuntimeError("Scoring requires OPENROUTER_API_KEY to be set.")

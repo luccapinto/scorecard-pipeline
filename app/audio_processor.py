@@ -38,11 +38,18 @@ def _cached(key, loader):
 
 class BaseTranscription(ABC):
     """Base interface for all transcription providers."""
+
+    # True when transcribe() already returns speaker-labeled segments
+    # ({"speaker": ...} on each dict), making the pyannote diarization
+    # stage unnecessary for audio transcribed by this provider.
+    provides_diarization: bool = False
+
     @abstractmethod
     def transcribe(self, audio_path: Path) -> List[Dict[str, Any]]:
         """
         Transcribes the audio file.
         Returns a list of dicts: [{"text": str, "start": float, "end": float}]
+        (plus "speaker" when provides_diarization is True).
         """
         pass
 
@@ -165,6 +172,111 @@ class OpenAITranscription(BaseTranscription):
                 "text": text.strip(),
                 "start": float(start),
                 "end": float(end)
+            })
+        return formatted
+
+
+class DeepgramTranscription(BaseTranscription):
+    """
+    Cloud transcription + speaker diarization in a single call, using
+    Deepgram's pre-recorded audio API (nova-3 by default).
+
+    Returned segments carry a "speaker" key (SPEAKER_00, SPEAKER_01, ...
+    matching the pyannote label format), so the separate diarization stage
+    becomes a passthrough for audio transcribed by this provider.
+    """
+
+    provides_diarization = True
+
+    _CONTENT_TYPES = {
+        ".wav": "audio/wav",
+        ".mp3": "audio/mpeg",
+        ".m4a": "audio/mp4",
+        ".ogg": "audio/ogg",
+        ".opus": "audio/ogg",
+        ".flac": "audio/flac",
+        ".webm": "audio/webm",
+    }
+
+    def __init__(
+        self,
+        api_key: str = None,
+        model: str = None,
+        language: str = None,
+        timeout_seconds: float = 600.0,
+    ):
+        self.api_key = api_key or settings.deepgram_api_key
+        self.model = model or settings.deepgram_model
+        self.language = language or settings.deepgram_language
+        self.timeout_seconds = timeout_seconds
+
+    def transcribe(self, audio_path: Path) -> List[Dict[str, Any]]:
+        logger.info(
+            f"Starting Deepgram transcription+diarization "
+            f"({self.model}, language={self.language})"
+        )
+        if not self.api_key:
+            raise TranscriptionDependencyError(
+                "DEEPGRAM_API_KEY is required for TRANSCRIPTION_PROVIDER=deepgram."
+            )
+
+        import httpx
+
+        content_type = self._CONTENT_TYPES.get(
+            audio_path.suffix.lower(), "application/octet-stream"
+        )
+        response = httpx.post(
+            "https://api.deepgram.com/v1/listen",
+            params={
+                "model": self.model,
+                "language": self.language,
+                "diarize": "true",
+                "smart_format": "true",
+                "utterances": "true",
+            },
+            headers={
+                "Authorization": f"Token {self.api_key}",
+                "Content-Type": content_type,
+            },
+            content=audio_path.read_bytes(),
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        body = response.json()
+
+        utterances = body.get("results", {}).get("utterances", [])
+        if not utterances:
+            # Distinguish "silent audio" from a malformed/unexpected response.
+            transcript = (
+                body.get("results", {})
+                .get("channels", [{}])[0]
+                .get("alternatives", [{}])[0]
+                .get("transcript", "")
+            )
+            if transcript:
+                raise ValueError(
+                    "Deepgram returned a transcript but no utterances; "
+                    "cannot attribute speakers. Check that diarize/utterances "
+                    "params are supported by the configured model."
+                )
+            logger.warning(
+                "Deepgram returned an empty transcript. If the audio is not "
+                "silent, check DEEPGRAM_LANGUAGE (mismatch yields empty output)."
+            )
+            return []
+
+        formatted = []
+        for utt in utterances:
+            speaker_id = utt.get("speaker")
+            speaker = (
+                f"SPEAKER_{int(speaker_id):02d}"
+                if speaker_id is not None else "UNKNOWN"
+            )
+            formatted.append({
+                "text": str(utt.get("transcript", "")).strip(),
+                "start": float(utt["start"]),
+                "end": float(utt["end"]),
+                "speaker": speaker,
             })
         return formatted
 

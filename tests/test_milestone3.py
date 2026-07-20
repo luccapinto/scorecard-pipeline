@@ -9,6 +9,7 @@ from app.audio_processor import (
     clear_model_caches,
     LocalTranscription,
     OpenAITranscription,
+    DeepgramTranscription,
     Diarizer,
     TranscriptionDependencyError,
 )
@@ -170,6 +171,68 @@ def test_openai_transcription_driver_mocked():
         assert result[0]["start"] == 0.5
         assert result[0]["end"] == 2.5
         mock_client.audio.transcriptions.create.assert_called_once()
+
+
+def test_deepgram_transcription_missing_key_fails_fast():
+    driver = DeepgramTranscription(api_key="")
+    driver.api_key = ""  # ensure no env/config fallback
+    with pytest.raises(TranscriptionDependencyError):
+        driver.transcribe(Path("dummy_audio.wav"))
+
+
+def test_deepgram_transcription_driver_mocked(tmp_path):
+    audio = tmp_path / "audio.wav"
+    audio.write_bytes(b"dummy")
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "results": {
+            "channels": [{"alternatives": [{"transcript": "ola tudo bem"}]}],
+            "utterances": [
+                {"speaker": 0, "start": 0.0, "end": 6.5,
+                 "transcript": "Olá, tudo bem?"},
+                {"speaker": 1, "start": 7.4, "end": 9.6,
+                 "transcript": "Tudo ótimo, obrigado."},
+            ],
+        }
+    }
+
+    with patch("httpx.post", return_value=mock_response) as mock_post:
+        driver = DeepgramTranscription(
+            api_key="fake-key", model="nova-3", language="pt"
+        )
+        result = driver.transcribe(audio)
+
+    assert result == [
+        {"text": "Olá, tudo bem?", "start": 0.0, "end": 6.5,
+         "speaker": "SPEAKER_00"},
+        {"text": "Tudo ótimo, obrigado.", "start": 7.4, "end": 9.6,
+         "speaker": "SPEAKER_01"},
+    ]
+    assert DeepgramTranscription.provides_diarization is True
+    params = mock_post.call_args.kwargs["params"]
+    assert params["diarize"] == "true"
+    assert params["language"] == "pt"
+    assert params["utterances"] == "true"
+
+
+def test_deepgram_transcript_without_utterances_raises(tmp_path):
+    # A transcript with no utterances means speakers cannot be attributed —
+    # must fail instead of silently losing diarization.
+    audio = tmp_path / "audio.wav"
+    audio.write_bytes(b"dummy")
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "results": {
+            "channels": [{"alternatives": [{"transcript": "texto sem falantes"}]}],
+            "utterances": [],
+        }
+    }
+    with patch("httpx.post", return_value=mock_response):
+        driver = DeepgramTranscription(api_key="fake-key")
+        with pytest.raises(ValueError, match="utterances"):
+            driver.transcribe(audio)
 
 
 def test_diarizer_driver_mocked():

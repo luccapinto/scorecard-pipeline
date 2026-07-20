@@ -36,6 +36,46 @@ def test_validate_runtime_dependencies_openai_requires_key(monkeypatch):
         run_worker.validate_runtime_dependencies()
 
 
+def test_validate_runtime_dependencies_deepgram_requires_key(monkeypatch):
+    monkeypatch.setattr(settings, "transcription_provider", "deepgram")
+    monkeypatch.setattr(settings, "deepgram_api_key", "")
+    with pytest.raises(RuntimeError, match="DEEPGRAM_API_KEY"):
+        run_worker.validate_runtime_dependencies()
+
+
+def test_validate_runtime_dependencies_deepgram_skips_local_ml(monkeypatch):
+    # Deepgram bundles diarization: the worker must start without whisperx,
+    # pyannote or HF_TOKEN.
+    monkeypatch.setattr(settings, "transcription_provider", "deepgram")
+    monkeypatch.setattr(settings, "deepgram_api_key", "dg-key")
+    monkeypatch.setattr(settings, "hf_token", "")
+    monkeypatch.setattr(settings, "openrouter_api_key", "or-key")
+    monkeypatch.delitem(sys.modules, "whisperx", raising=False)
+    monkeypatch.delitem(sys.modules, "pyannote.audio", raising=False)
+    run_worker.validate_runtime_dependencies()
+
+
+def test_diarize_audio_passthrough_for_speaker_labeled_segments(monkeypatch):
+    # Segments that already carry speaker labels (Deepgram) must bypass
+    # pyannote entirely, regardless of the configured provider.
+    from app.services import diarize_audio
+    from app.audio_processor import Diarizer
+
+    def boom(self, *a, **kw):
+        raise AssertionError("pyannote must not be invoked in passthrough mode")
+
+    monkeypatch.setattr(Diarizer, "diarize", boom)
+    segments = [
+        {"text": "Olá", "start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"},
+        {"text": "Oi", "start": 1.2, "end": 2.0, "speaker": "SPEAKER_01"},
+    ]
+    result = diarize_audio(Path("dummy.wav"), transcription_raw=segments)
+    assert result == [
+        {"speaker": "SPEAKER_00", "text": "Olá", "start": 0.0, "end": 1.0},
+        {"speaker": "SPEAKER_01", "text": "Oi", "start": 1.2, "end": 2.0},
+    ]
+
+
 # ==========================================
 # SSRF guard
 # ==========================================

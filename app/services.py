@@ -13,6 +13,7 @@ from app.config import settings
 from app.audio_processor import (
     LocalTranscription,
     OpenAITranscription,
+    DeepgramTranscription,
     Diarizer,
     merge_transcription_and_diarization
 )
@@ -138,12 +139,12 @@ def get_transcriber() -> Any:
     provider = settings.transcription_provider.lower()
     if provider == "openai":
         return OpenAITranscription(api_key=settings.openai_api_key)
-    if provider not in ("local", "openai"):
-        # OpenRouter (and anything else) is not a transcription backend — only
-        # "local" and "openai" are. Warn loudly instead of silently degrading.
+    if provider == "deepgram":
+        return DeepgramTranscription()
+    if provider not in ("local", "openai", "deepgram"):
         logger.warning(
             "Unknown TRANSCRIPTION_PROVIDER=%r; falling back to local WhisperX. "
-            "Valid values are 'local' or 'openai'.",
+            "Valid values are 'local', 'openai' or 'deepgram'.",
             settings.transcription_provider,
         )
     return LocalTranscription(
@@ -168,6 +169,31 @@ def diarize_audio(audio_path: Path, transcription_raw: Any = None) -> List[Dict[
     merges speaker labels with transcribed segments.
     """
     logger.info(f"Diarizing audio file {audio_path}")
+
+    # Providers like Deepgram return transcription segments that already carry
+    # speaker labels; in that case pyannote is unnecessary and this stage is a
+    # passthrough. Detected from the persisted data (not the configured
+    # provider) so that resumed interviews behave consistently even if
+    # TRANSCRIPTION_PROVIDER changed between attempts.
+    if (
+        isinstance(transcription_raw, list)
+        and transcription_raw
+        and all(isinstance(s, dict) and "speaker" in s for s in transcription_raw)
+    ):
+        logger.info(
+            "Transcription segments already contain speaker labels; "
+            "skipping pyannote diarization."
+        )
+        return [
+            {
+                "speaker": s["speaker"],
+                "text": s.get("text", ""),
+                "start": s["start"],
+                "end": s["end"],
+            }
+            for s in transcription_raw
+        ]
+
     diarizer = Diarizer(hf_token=settings.hf_token)
     diarization_result = diarizer.diarize(audio_path)
 

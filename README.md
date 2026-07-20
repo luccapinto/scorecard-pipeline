@@ -21,8 +21,8 @@ flowchart TD
 
     subgraph Worker de Processamento
         Worker[Worker RQ]
-        Transcribe[Motor Transcrição: WhisperX / OpenAI API]
-        Diarize[Diarização: pyannote.audio]
+        Transcribe[Motor Transcrição: WhisperX / OpenAI API / Deepgram API]
+        Diarize[Diarização: pyannote.audio ou Deepgram nativa]
         Context[Agregador de Contexto: Job/BARS/Checklist]
         LLM[Scoring LLM: OpenRouter + Pydantic]
         Validator[Validador de Evidências: Mitigação de Alucinação]
@@ -67,8 +67,8 @@ dimensionado para áudios longos e retry automático com backoff.
 - **Core & API:** Python 3.11 + FastAPI (Uvicorn)
 - **Fila de Mensageria:** Redis + RQ (Redis Queue) com timeout e retries configurados
 - **Persistência de Estado:** PostgreSQL (SQLAlchemy / SQLModel, JSONB) + Alembic (migrações)
-- **Transcrição (STT):** WhisperX (Local) / OpenAI API (Nuvem)
-- **Diarização (Speakers):** Pyannote.audio (`pyannote/speaker-diarization-3.1`)
+- **Transcrição (STT):** Deepgram nova-3 (Nuvem, **default**, com diarização nativa) / WhisperX (Local) / OpenAI API (Nuvem)
+- **Diarização (Speakers):** nativa no modo Deepgram (default); Pyannote.audio (`pyannote/speaker-diarization-3.1`) nos modos local/openai
 - **Motor de Scoring:** OpenRouter (structured outputs JSON Schema derivado de Pydantic, `temperature=0`)
 - **Validação de Evidência:** matching exato + fuzzy (RapidFuzz) tolerante a WER real
 - **Geração de Dados Sintéticos:** `edge-tts` (TTS multi-voz Azure) + Templates de Vaga estruturados
@@ -101,7 +101,7 @@ Há também uma revisão completa de arquitetura em [docs/reviews/](docs/reviews
 │   ├── config.py          # Configurações de variáveis de ambiente (Pydantic Settings)
 │   ├── queue.py           # Conexão com Redis Queue + política de timeout/retry
 │   ├── tasks.py           # Orquestração resiliente da esteira do Worker (com lock)
-│   ├── audio_processor.py # Drivers WhisperX (local), OpenAI (nuvem) e Pyannote (com cache de modelos)
+│   ├── audio_processor.py # Drivers WhisperX (local), OpenAI e Deepgram (nuvem) e Pyannote (com cache de modelos)
 │   ├── scoring.py         # Contexto, OpenRouter (structured outputs) e validador de evidência fuzzy
 │   ├── notifications.py   # Slack Block Kit e Webhook genérico com links de decisão por token
 │   ├── security.py        # Verificação HMAC do webhook e API key
@@ -143,8 +143,10 @@ Copie o arquivo `.env.example` para `.env`:
 cp .env.example .env
 ```
 Preencha as variáveis conforme necessário:
-- `HF_TOKEN`: Token do Hugging Face com acesso ao pipeline do `pyannote/speaker-diarization-3.1`.
-- `OPENROUTER_API_KEY` ou `OPENAI_API_KEY`: Chaves de API para os modelos de Scoring e Transcrição em nuvem.
+- `DEEPGRAM_API_KEY`: Chave da Deepgram para o provider default de transcrição + diarização (nova-3). Veja a seção *Transcrição & Diarização* abaixo.
+- `OPENROUTER_API_KEY`: Chave para o motor de Scoring (LLM).
+- `HF_TOKEN`: Token do Hugging Face com acesso ao `pyannote/speaker-diarization-3.1` — **apenas** para os providers `local`/`openai`.
+- `OPENAI_API_KEY`: apenas para `TRANSCRIPTION_PROVIDER=openai`.
 - `SLACK_WEBHOOK_URL` (Opcional): Para testar notificações no Slack.
 - **Em produção, sempre defina:** `WEBHOOK_HMAC_SECRET` (assinatura do webhook), `API_KEY` (auth dos endpoints) e `AUDIO_ALLOWED_DIR` (restringe caminhos locais de áudio).
 
@@ -248,6 +250,47 @@ curl -X POST -H "X-API-Key: $API_KEY" \
   http://127.0.0.1:8000/admin/reconcile                            # re-enfileira 'recebida' órfãs
 python -m app.maintenance                                          # reconciliação + retenção via cron
 ```
+
+---
+
+## 🎙️ Transcrição & Diarização — Provedores
+
+A etapa de transcrição/diarização é plugável via `TRANSCRIPTION_PROVIDER`:
+
+| Provider | Transcrição | Diarização | Requisitos | Custo (~1h de áudio) | Tempo (~1h de áudio) |
+|---|---|---|---|---|---|
+| `deepgram` (**default**) | Deepgram nova-3 (API) | **Nativa, na mesma chamada** | `DEEPGRAM_API_KEY` | ~US$ 0,31 (`multi`) | ~1–2 min |
+| `local` | WhisperX (CPU/GPU) | pyannote.audio | `requirements-ml.txt` + `HF_TOKEN` | zero (compute próprio) | ~15 min+ em CPU |
+| `openai` | whisper-1 (API) | pyannote.audio (local) | `OPENAI_API_KEY` + ML local + `HF_TOKEN` | ~US$ 0,36 + compute | híbrido |
+
+No modo `deepgram`, os segmentos já chegam rotulados por speaker (`SPEAKER_00`,
+`SPEAKER_01`, ... — mesmo formato do pyannote) e a etapa `DIARIZANDO` da esteira
+vira um passthrough: a detecção é feita **pelos dados persistidos** (segmentos com
+chave `speaker`), então entrevistas retomadas após troca de provider se comportam
+corretamente. O worker também dispensa whisperx/pyannote/HF_TOKEN no startup
+nesse modo.
+
+**Gotchas do provider `deepgram` (aprendidos empiricamente):**
+- `DEEPGRAM_LANGUAGE` é obrigatório: o default da Deepgram é inglês e, com
+  idioma errado, a API retorna transcript **vazio** (e cobra mesmo assim).
+- Use `multi` (code-switching, default deste repo), não `pt`: o modo monolíngue
+  derruba/mangla os termos técnicos em inglês embutidos na fala ("queries",
+  "deploy", "pull request", "GitHub"...), que são exatamente o vocabulário de que
+  o scoring e o validador de evidências dependem. O `multi` custa ~20% mais e
+  preserva a grande maioria deles.
+- O OpenRouter tem endpoint de transcrição (`/api/v1/audio/transcriptions`) que
+  serve o nova-3, mas o schema normalizado dele **descarta os labels de speaker**
+  — por isso o provider fala com a API da Deepgram diretamente.
+
+**Validação com áudio real:** o provider foi validado contra uma entrevista
+técnica real de 53 min em pt-BR ([Desenvolvedor Jr | Simulação de entrevista
+Técnica — Mate academy Brasil](https://www.youtube.com/live/KPqLBNXewUQ)):
+transcrição + diarização em 68s (~US$ 0,28), 3 speakers detectados corretamente
+(apresentador, entrevistador, candidato) e termos técnicos (JavaScript, React,
+async/await, promises, deploy...) preservados. O áudio **não é versionado no
+repositório** (conteúdo de terceiros); para reproduzir o teste, baixe a trilha
+localmente, por exemplo com `yt-dlp -f 139 -o entrevista.m4a <url>`, e envie o
+arquivo pelo webhook de ingestão como qualquer outra gravação.
 
 ---
 
