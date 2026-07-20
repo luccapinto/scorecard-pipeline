@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # libsndfile is required by soundfile (synthetic data tooling); ffmpeg by
 # audio backends when the ML extra is installed.
