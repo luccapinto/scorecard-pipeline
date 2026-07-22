@@ -7,7 +7,31 @@ versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
+### Adicionado
+
+- **Código-fonte do frontend** (`frontend/`): SPA React + TypeScript + Vite
+  escrita do zero a partir do contrato da API, substituindo o bundle
+  pré-compilado que era a única forma da interface existir no repositório.
+  Funciona como painel da esteira: resumo por estágio com filtros, entrevistas
+  que precisam de ação humana destacadas no topo, scorecard com alerta
+  visual proeminente para evidências não verificadas (possível alucinação do
+  LLM), transcrição separada por interlocutor, aprovação/rejeição com
+  confirmação em duas etapas e reprocessamento de falhas. URL da API e
+  `X-API-Key` configuráveis em runtime (localStorage) — nada embutido no
+  build. 61 testes com Vitest + Testing Library; TypeScript `strict`; só
+  `react` + `react-dom` como dependências de runtime.
+- Especificação da reconstrução em `docs/specs/frontend-rewrite-prompt.md`,
+  com o contrato real da API verificado empiricamente.
+- `frontend/Dockerfile` multi-stage (Node → nginx): o Docker Compose agora
+  constrói a SPA do source em vez de montar um bundle pré-existente — um
+  clone novo sobe a interface sem passo manual.
+- Job `frontend` no CI (typecheck, testes, build) e smoke test da imagem da
+  SPA no job de Docker.
+
 ### Alterado
+
+- `frontend/dist/` deixou de ser versionado: passa a ser gerado pelo build
+  (localmente via `npm run build`, no Compose via multi-stage build).
 
 - Diagramas da arquitetura dupla redesenhados: os estados da esteira
   (`TRANSCREVENDO`, `DIARIZANDO`) agora aparecem numa faixa própria,

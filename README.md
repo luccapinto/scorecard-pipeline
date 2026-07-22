@@ -25,7 +25,7 @@ variável de ambiente; a esteira, a máquina de estados e o scoring não mudam.
 - [Decisões de Arquitetura (ADRs)](#-decisões-de-arquitetura-adrs)
 - [Estrutura de Diretórios](#-estrutura-de-diretórios)
 - [Como Executar Localmente](#-como-executar-localmente)
-- [Interface Web](#%EF%B8%8F-interface-web-estado-atual)
+- [Interface Web](#%EF%B8%8F-interface-web)
 - [Validando o Fluxo de Ponta a Ponta](#-validando-o-fluxo-de-ponta-a-ponta)
 - [Transcrição & Diarização — Provedores](#%EF%B8%8F-transcrição--diarização--provedores)
 - [Benchmark WER](#-relatório-de-benchmark-wer)
@@ -320,24 +320,28 @@ python -m uvicorn app.main:app --reload
 
 ---
 
-## 🖥️ Interface Web (estado atual)
+## 🖥️ Interface Web
 
-O diretório `frontend/dist/` contém uma SPA React **pré-compilada** que consome
-a API (`GET /jobs`, `GET /recordings`, `GET /interviews`) para acompanhar as
-entrevistas e acionar a decisão humana. No Docker Compose ela é servida por um
-nginx em `http://localhost:5173`, origem que já está na allowlist de CORS da API.
+O diretório `frontend/` contém o **código-fonte** de uma SPA React + TypeScript
+que funciona como painel da esteira: resumo de entrevistas por estágio,
+destaque das que precisam de ação humana (`aguardando_aprovacao` e `falhou`),
+scorecard com alerta visual para evidências não verificadas (possível
+alucinação do LLM), transcrição separada por interlocutor e o fluxo de
+aprovação/rejeição com confirmação em duas etapas.
 
-> ⚠️ **Limitação conhecida:** apenas o *bundle* compilado está versionado — o
-> código-fonte da SPA não faz parte deste repositório. Isso significa que a
-> interface **não pode ser auditada, modificada nem recompilada** a partir de um
-> clone. Ela é um artefato de conveniência para demonstrar a esteira, não um
-> componente mantido do projeto.
->
-> A API é a interface de contrato do sistema e é completamente utilizável sem a
-> SPA (veja a validação de ponta a ponta abaixo e a documentação interativa em
-> `http://localhost:8000/docs`). Publicar o código-fonte da interface — ou
-> substituí-la por uma alternativa aberta — está em aberto como contribuição
-> bem-vinda.
+- **No Docker Compose** a SPA é construída do source (multi-stage Node → nginx)
+  e servida em `http://localhost:5173`, origem que já está na allowlist de
+  CORS da API.
+- **Em desenvolvimento**: `cd frontend && npm install && npm run dev` (a porta
+  5173 é obrigatória — a allowlist de CORS depende dela).
+- A URL da API e a `X-API-Key` são configuráveis **em runtime** pela própria
+  interface (persistidas no `localStorage` do navegador) — nenhuma chave ou
+  host é embutido no build.
+- Como rodar, buildar e testar: veja [`frontend/README.md`](frontend/README.md).
+
+A API continua sendo a interface de contrato do sistema e é completamente
+utilizável sem a SPA (veja a validação de ponta a ponta abaixo e a documentação
+interativa em `http://localhost:8000/docs`).
 
 ---
 

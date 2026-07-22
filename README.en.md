@@ -208,15 +208,23 @@ deterministically, so contributors do not need torch to contribute.
 
 ## Web UI
 
-`frontend/dist/` holds a **pre-built** React SPA served by nginx at
-`http://localhost:5173`.
+`frontend/` holds the **source** of a React + TypeScript SPA that works as a
+pipeline dashboard: per-stage interview counts, items that need human action
+(`aguardando_aprovacao` and `falhou`) surfaced first, the scorecard with a loud
+visual alert for unverified evidence (possible LLM hallucination), the
+transcript split by speaker, and a two-step confirmation for approve/reject.
 
-> ⚠️ **Known limitation:** only the compiled bundle is versioned; the SPA source
-> is not part of this repository, so the interface cannot be audited, modified
-> or rebuilt from a clone. It is a convenience artifact for demonstrating the
-> pipeline, not a maintained component. The API is the system's contract and is
-> fully usable without it. Publishing the UI source — or replacing it with an
-> open alternative — is a welcome contribution.
+- **Docker Compose** builds the SPA from source (multi-stage Node → nginx) and
+  serves it at `http://localhost:5173`, an origin already on the API's CORS
+  allowlist.
+- **Development**: `cd frontend && npm install && npm run dev` (port 5173 is
+  mandatory — the CORS allowlist depends on it).
+- The API URL and `X-API-Key` are configured **at runtime** in the UI itself
+  (persisted in the browser's `localStorage`) — no key or host is baked into
+  the build.
+- How to run, build and test: see [`frontend/README.md`](frontend/README.md).
+
+The API remains the system's contract and is fully usable without the SPA.
 
 ## Privacy and responsible use
 

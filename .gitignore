@@ -35,8 +35,9 @@ env/
 # Environment variables
 .env
 
-# Node / frontend build deps (the built SPA in frontend/dist is committed;
-# its node_modules is not — heavy and regenerable via `npm install`).
+# Node: dependencies are regenerable via `npm install`. The SPA bundle is no
+# longer committed either — frontend/.gitignore covers frontend/dist, which is
+# produced by `npm run build` (locally) or the multi-stage Docker build.
 node_modules/
 
 # Database files
