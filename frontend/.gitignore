@@ -1,0 +1,14 @@
+# Frontend build tooling: dependencies and the generated SPA bundle are not
+# committed — `npm install` restores node_modules and `npm run build` restores
+# dist/. (The root .gitignore anchors /dist/ to the repo root, so it does NOT
+# cover frontend/dist/; this file does.)
+node_modules/
+dist/
+
+# Test/coverage artifacts
+coverage/
+
+# Local env overrides (never commit keys or hosts)
+.env
+.env.local
+.env.*.local

@@ -15,8 +15,10 @@ develop-eggs/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# anchored to repo root: these target Python packaging artifacts, and an
+# unanchored lib/ would swallow frontend/src/lib
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -35,8 +37,9 @@ env/
 # Environment variables
 .env
 
-# Node / frontend build deps (the built SPA in frontend/dist is committed;
-# its node_modules is not — heavy and regenerable via `npm install`).
+# Node: dependencies are regenerable via `npm install`. The SPA bundle is no
+# longer committed either — frontend/.gitignore covers frontend/dist, which is
+# produced by `npm run build` (locally) or the multi-stage Docker build.
 node_modules/
 
 # Database files
