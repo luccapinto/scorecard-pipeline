@@ -94,8 +94,11 @@ Cria uma entrevista. **Status 202.** Corpo:
 ```
 Resposta:
 ```json
-{ "interview_id": "uuid", "status": "recebida", "deduplicated": false }
+{ "interview_id": "uuid", "status": "recebida" }
 ```
+Quando o `external_id` já existe (idempotência), a resposta traz também
+`"deduplicated": true`; numa criação nova o campo **não vem**. Trate-o como
+opcional.
 Quando `WEBHOOK_HMAC_SECRET` está configurado no servidor, este endpoint exige
 uma assinatura HMAC-SHA256 no header `X-Webhook-Signature`. **Um navegador não
 tem como assinar sem expor o segredo** — portanto, se a criação pela interface
@@ -118,6 +121,14 @@ Reenfileira uma entrevista em `falhou`. Sem corpo.
 `{"status": "ok"}` ou **503** com `{"status": "unhealthy", "problems": {...}}`.
 
 ### Formato do `scorecard`
+
+> **Serialização**: `scorecard`, `transcription_raw` e `diarization_raw` são
+> colunas JSON/JSONB; o worker grava objetos e a API os devolve como
+> objetos/listas já parseados (verificado contra a API real em 2026-07-21).
+> Ainda assim, trate esses campos com parsing tolerante no cliente (aceitando
+> também uma string JSON): dados gravados por caminhos alternativos podem
+> chegar duplo-codificados, e a tela de decisão nunca pode quebrar por isso.
+
 ```json
 {
   "candidate_name": "string",
@@ -140,12 +151,14 @@ for `false`, a citação é possivelmente alucinada pelo LLM e **precisa saltar 
 olhos** do avaliador. `null` significa não verificada.
 
 ### Formatos de `transcription_raw` / `diarization_raw`
-Lista de segmentos. No modo Deepgram os dois já vêm com speaker:
+Lista de segmentos (ver nota de serialização acima). No modo Deepgram os dois
+já vêm com speaker:
 ```json
 [{ "speaker": "SPEAKER_00", "text": "...", "start": 0.0, "end": 6.5 }]
 ```
-No modo local, `transcription_raw` pode vir sem a chave `speaker`. Trate os dois
-casos. Os rótulos são `SPEAKER_00`, `SPEAKER_01`, ... — não há nomes reais.
+No modo local, `transcription_raw` pode vir sem a chave `speaker`, ou ainda ser
+texto plano (não-JSON). Trate todos os casos. Os rótulos são `SPEAKER_00`,
+`SPEAKER_01`, ... — não há nomes reais.
 
 ## O que a interface precisa entregar
 
