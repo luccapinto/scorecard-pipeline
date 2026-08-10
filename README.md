@@ -1,126 +1,125 @@
-# Pipeline de Scorecard de Entrevistas com IA
+# AI Interview Scorecard Pipeline
 
 [![CI](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/ci.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CodeQL](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/codeql.yml/badge.svg)](https://github.com/luccapinto/scorecard-pipeline/actions/workflows/codeql.yml)
 
-📖 **[Read this in English](README.en.md)**
+Turns a technical interview recording into a **structured scorecard based on
+verified evidence**. Every quote used to justify a score is checked against the
+transcript (exact + fuzzy matching) before it reaches a human — and the final
+decision is **always human**: the pipeline stops at `aguardando_aprovacao` and
+never approves or rejects a candidate on its own.
 
-Transforma a gravação de uma entrevista técnica em um **scorecard estruturado e
-baseado em evidências verificadas**. Cada citação usada para justificar uma nota
-é conferida contra a transcrição (matching exato + fuzzy) antes de chegar a um
-humano — e a decisão final é **sempre humana**: a esteira para em
-`aguardando_aprovacao` e nunca aprova ou rejeita um candidato sozinha.
+Transcription and speaker diarization have a **dual architecture**: they run
+entirely **locally** (WhisperX + pyannote, without sending audio to third
+parties) or **via API** (Deepgram nova-3, the default — one call handles both
+steps). Switching is an environment variable; the pipeline, the state machine and the scoring do not change.
 
-A transcrição e a diarização têm **arquitetura dupla**: rodam inteiramente
-**locais** (WhisperX + pyannote, sem enviar áudio a terceiros) ou **via API**
-(Deepgram nova-3, padrão — uma chamada resolve as duas etapas). A troca é uma
-variável de ambiente; a esteira, a máquina de estados e o scoring não mudam.
+## 📑 Table of Contents
 
-## 📑 Sumário
+- [System Architecture](#%EF%B8%8F-system-architecture)
+- [Technology Stack](#%EF%B8%8F-technology-stack)
+- [Architecture Decisions (ADRs)](#-architecture-decisions-adrs)
+- [Directory Structure](#-directory-structure)
+- [Running Locally](#-running-locally)
+- [Web Interface](#%EF%B8%8F-web-interface-current-state)
+- [Validating the End-to-End Flow](#-validating-the-end-to-end-flow)
+- [Transcription & Speaker Diarization — Providers](#%EF%B8%8F-transcription--speaker-diarization--providers)
+- [WER Benchmark](#-wer-benchmark-report)
+- [Tests](#-running-the-test-suite)
+- [Contributing](#-contributing)
+- [License](#-license)
 
-- [Arquitetura do Sistema](#%EF%B8%8F-arquitetura-do-sistema)
-- [Stack Tecnológica](#%EF%B8%8F-stack-tecnológica)
-- [Decisões de Arquitetura (ADRs)](#-decisões-de-arquitetura-adrs)
-- [Estrutura de Diretórios](#-estrutura-de-diretórios)
-- [Como Executar Localmente](#-como-executar-localmente)
-- [Interface Web](#%EF%B8%8F-interface-web-estado-atual)
-- [Validando o Fluxo de Ponta a Ponta](#-validando-o-fluxo-de-ponta-a-ponta)
-- [Transcrição & Diarização — Provedores](#%EF%B8%8F-transcrição--diarização--provedores)
-- [Benchmark WER](#-relatório-de-benchmark-wer)
-- [Testes](#-executando-a-suíte-de-testes)
-- [Contribuindo](#-contribuindo)
-- [Licença](#-licença)
+## 🏗️ System Architecture
 
-## 🏗️ Arquitetura do Sistema
-
-O pipeline é projetado para processar cada gravação de entrevista individualmente, sem polling periódico e sem loteamento.
+The pipeline is designed to process each interview recording individually, with no periodic polling and no batching.
 
 ```mermaid
 flowchart TD
-    subgraph Entrada
-        Webhook[Webhook de Ingestão: POST /webhooks/recording + HMAC]
+    subgraph Input
+        Webhook[Ingestion Webhook: POST /webhooks/recording + HMAC]
     end
 
-    subgraph Fila & Persistência
+    subgraph Queue & Persistence
         Redis[(Redis Queue - RQ)]
         Postgres[(PostgreSQL)]
     end
 
-    subgraph Worker de Processamento
-        Worker[Worker RQ]
-        Transcribe[Motor Transcrição: WhisperX / OpenAI API / Deepgram API]
-        Diarize[Diarização: pyannote.audio ou Deepgram nativa]
-        Context[Agregador de Contexto: Job/BARS/Checklist]
+    subgraph Processing Worker
+        Worker[RQ Worker]
+        Transcribe[Transcription Engine: WhisperX / OpenAI API / Deepgram API]
+        Diarize[Speaker Diarization: pyannote.audio or native Deepgram]
+        Context[Context Aggregator: Job/BARS/Checklist]
         LLM[Scoring LLM: OpenRouter + Pydantic]
-        Validator[Validador de Evidências: Mitigação de Alucinação]
+        Validator[Evidence Validator: Hallucination Mitigation]
     end
 
-    subgraph Notificação & Decisão
+    subgraph Notification & Decision
         Slack[Slack Block Kit / Webhook]
-        Approver[Decisão Humana: link com token de uso único ou POST /interviews/id/action]
+        Approver[Human Decision: single-use token link or POST /interviews/id/action]
     end
 
-    Webhook -->|1. Salva status recebida| Postgres
-    Webhook -->|2. Enfileira Job com timeout+retry| Redis
-    Redis -->|3. Consome| Worker
-    Worker -->|4. Transcreve| Transcribe
-    Worker -->|5. Diariza| Diarize
-    Worker -->|6. Agrega requisitos da vaga| Context
-    Worker -->|7. Gera notas| LLM
-    Worker -->|8. Valida citações de texto| Validator
-    Worker -->|9. Atualiza progresso & persistência| Postgres
-    Worker -->|10. Notifica scorecard| Slack
-    Slack -->|11. Avaliador aprova/rejeita| Approver
-    Approver -->|12. Estado Final| Postgres
+    Webhook -->|1. Saves received status| Postgres
+    Webhook -->|2. Enqueues job with timeout+retry| Redis
+    Redis -->|3. Consumes| Worker
+    Worker -->|4. Transcribes| Transcribe
+    Worker -->|5. Diarizes| Diarize
+    Worker -->|6. Aggregates job requirements| Context
+    Worker -->|7. Generates scores| LLM
+    Worker -->|8. Validates text quotes| Validator
+    Worker -->|9. Updates progress & persistence| Postgres
+    Worker -->|10. Notifies scorecard| Slack
+    Slack -->|11. Reviewer approves/rejects| Approver
+    Approver -->|12. Final state| Postgres
 ```
 
-### Máquina de Estados
+### State Machine
 
 ```
 recebida → transcrevendo → diarizando → pontuando → aguardando_aprovacao → aprovada | rejeitada
                  ↘             ↘            ↘
-                              falhou  (reprocessável via POST /interviews/{id}/reprocess)
+                              falhou  (reprocessable via POST /interviews/{id}/reprocess)
 ```
 
-Cada etapa persiste um checkpoint (`transcription_raw`, `diarization_raw`, `scorecard`);
-uma entrevista que falhou retoma exatamente do ponto onde parou, sem repetir
-transcrição/diarização já concluídas. Jobs são enfileirados com `job_timeout`
-dimensionado para áudios longos e retry automático com backoff.
+Each step persists a checkpoint (`transcription_raw`, `diarization_raw`,
+`scorecard`); an interview that failed resumes exactly where it stopped,
+without repeating transcription/diarization already completed. Jobs are
+enqueued with `job_timeout` sized for long audio and automatic retry with
+backoff.
 
-### Arquitetura dupla: transcrição e diarização
+### Dual architecture: transcription and speaker diarization
 
-As etapas `TRANSCREVENDO` e `DIARIZANDO` são as mesmas na máquina de estados,
-mas o trabalho interno depende do `TRANSCRIPTION_PROVIDER`:
+The `TRANSCREVENDO` and `DIARIZANDO` steps are the same in the state machine,
+but the internal work depends on the `TRANSCRIPTION_PROVIDER`:
 
-> **Leia os diagramas assim:** `TRANSCREVENDO` e `DIARIZANDO` (nas faixas
-> superiores) são **estados da esteira**, persistidos no Postgres — não são
-> trabalho. Eles existem igualmente nos dois modos; o que muda é o que roda
-> dentro de cada um, mostrado na faixa inferior. Manter os mesmos estados é
-> proposital: o checkpoint de retomada, o status exposto pela API e o contrato
-> lido pelo scoring não dependem do provider escolhido.
+> **Read the diagrams like this:** `TRANSCREVENDO` and `DIARIZANDO` (in the
+> top lanes) are **pipeline states**, persisted in Postgres — not work. They
+> exist equally in both modes; what changes is what runs inside each one, shown
+> in the bottom lane. Keeping the same states is intentional: the resume
+> checkpoint, the status exposed by the API and the contract read by the
+> scoring do not depend on the chosen provider.
 
-**Modo API (`deepgram`, padrão)** — uma única chamada resolve transcrição e
-diarização. A entrevista **ainda passa pelo estado `DIARIZANDO`**, mas ali não
-roda nenhum modelo nem nova chamada: os speakers já estão nos segmentos, e a
-etapa apenas os grava em `diarization_raw`. Sem modelos locais, sem GPU, sem
-`HF_TOKEN`:
+**API mode (`deepgram`, default)** — a single call resolves transcription and
+diarization. The interview **still passes through the `DIARIZANDO` state**,
+but no model runs and no new call is made there: the speakers are already in
+the segments, and the step merely records them into `diarization_raw`. No
+local models, no GPU, no `HF_TOKEN`:
 
 ```mermaid
 flowchart LR
-    subgraph estados ["Estados da esteira (Postgres)"]
+    subgraph estados ["Pipeline states (Postgres)"]
         direction LR
         S1([TRANSCREVENDO]) --> S2([DIARIZANDO]) --> S3([PONTUANDO])
     end
 
-    subgraph trabalho ["O que roda em cada estado"]
+    subgraph trabalho ["What runs in each state"]
         direction LR
-        Audio[Áudio da entrevista] --> DG["Deepgram nova-3<br/>1 chamada de API<br/>language=multi + diarize"]
-        DG --> TR[("transcription_raw<br/>segmentos JÁ com speaker")]
-        TR --> NOOP["no-op: nada a fazer<br/>speakers já presentes<br/>(só copia)"]
+        Audio[Interview audio] --> DG["Deepgram nova-3<br/>1 API call<br/>language=multi + diarize"]
+        DG --> TR[("transcription_raw<br/>segments ALREADY with speaker")]
+        TR --> NOOP["no-op: nothing to do<br/>speakers already present<br/>(just copies)"]
         NOOP --> DR[("diarization_raw")]
-        DR --> Scoring["Scoring LLM"]
+        DR --> Scoring[Scoring LLM]
     end
 
     S1 -.-> DG
@@ -130,26 +129,26 @@ flowchart LR
     style NOOP stroke-dasharray: 5 5
 ```
 
-**Modo local (`local`)** — tudo roda na sua infraestrutura; nenhum áudio sai
-dela. Aqui o estado `DIARIZANDO` faz trabalho de verdade: pyannote detecta os
-speakers e um merge por sobreposição de timestamps atribui cada fala:
+**Local mode (`local`)** — everything runs on your infrastructure; no audio
+leaves it. Here the `DIARIZANDO` state does real work: pyannote detects the
+speakers and a timestamp-overlap merge assigns each utterance:
 
 ```mermaid
 flowchart LR
-    subgraph estados ["Estados da esteira (Postgres)"]
+    subgraph estados ["Pipeline states (Postgres)"]
         direction LR
         S1([TRANSCREVENDO]) --> S2([DIARIZANDO]) --> S3([PONTUANDO])
     end
 
-    subgraph trabalho ["O que roda em cada estado"]
+    subgraph trabalho ["What runs in each state"]
         direction LR
-        Audio[Áudio da entrevista] --> WX["WhisperX<br/>transcrição + alinhamento"]
-        WX --> TR[("transcription_raw<br/>segmentos SEM speaker")]
-        TR --> GC["Evict de modelos<br/>WhisperX + pyannote não<br/>coexistem na memória"]
+        Audio[Interview audio] --> WX["WhisperX<br/>transcription + alignment"]
+        WX --> TR[("transcription_raw<br/>segments WITHOUT speaker")]
+        TR --> GC["Model eviction<br/>WhisperX + pyannote do not<br/>coexist in memory"]
         GC --> PY["pyannote.audio<br/>speaker-diarization-3.1"]
-        PY --> MG["Merge por overlap<br/>de timestamps"]
+        PY --> MG["Merge by timestamp<br/>overlap"]
         MG --> DR[("diarization_raw")]
-        DR --> Scoring["Scoring LLM"]
+        DR --> Scoring[Scoring LLM]
     end
 
     S1 -.-> WX
@@ -157,161 +156,161 @@ flowchart LR
     S3 -.-> Scoring
 ```
 
-**Por que o modo API não pula o estado?** Porque os estados são o mecanismo de
-durabilidade da esteira, e mantê-los idênticos entre providers dá três coisas:
-uma entrevista que falhou retoma de `DIARIZANDO` e encontra `diarization_raw`
-gravado, independentemente de quem o produziu; o status exposto pela API não
-vaza qual provider está configurado; e o scoring lê sempre `diarization_raw`,
-sem caminho alternativo. O custo é uma duplicação de dados no modo API
-(`transcription_raw` e `diarization_raw` ficam quase idênticos) — barato para
-o volume de uma entrevista, e o preço de manter uma esteira só em vez de duas.
+**Why doesn't API mode skip the state?** Because the states are the pipeline's
+durability mechanism, and keeping them identical across providers gives three
+things: an interview that failed resumes from `DIARIZANDO` and finds
+`diarization_raw` already persisted, regardless of who produced it; the status
+exposed by the API does not leak which provider is configured; and the scoring
+always reads `diarization_raw`, with no alternative path. The cost is a data
+duplication in API mode (`transcription_raw` and `diarization_raw` end up
+nearly identical) — cheap for the volume of a single interview, and the price of maintaining one pipeline instead of two.
 
-A decisão de fazer o no-op é tomada **pelos dados persistidos** (segmentos que
-já trazem a chave `speaker`), não pela configuração vigente — uma entrevista
-retomada após troca de provider continua se comportando corretamente.
-Comparação de custo, tempo e requisitos de cada modo na seção
-[Transcrição & Diarização](#%EF%B8%8F-transcrição--diarização--provedores).
+The no-op decision is made **from the persisted data** (segments that already
+carry the `speaker` key), not from the current configuration — an interview
+resumed after a provider switch keeps behaving correctly. Compare cost, time
+and requirements of each mode in the
+[Transcription & Speaker Diarization](#%EF%B8%8F-transcription--speaker-diarization--providers) section.
 
 ---
 
-## 🛠️ Stack Tecnológica
+## 🛠️ Technology Stack
 
 - **Core & API:** Python 3.11 + FastAPI (Uvicorn)
-- **Fila de Mensageria:** Redis + RQ (Redis Queue) com timeout e retries configurados
-- **Persistência de Estado:** PostgreSQL (SQLAlchemy / SQLModel, JSONB) + Alembic (migrações)
-- **Transcrição (STT):** Deepgram nova-3 (Nuvem, **default**, com diarização nativa) / WhisperX (Local) / OpenAI API (Nuvem)
-- **Diarização (Speakers):** nativa no modo Deepgram (default); Pyannote.audio (`pyannote/speaker-diarization-3.1`) nos modos local/openai
-- **Motor de Scoring:** OpenRouter (structured outputs JSON Schema derivado de Pydantic, `temperature=0`)
-- **Validação de Evidência:** matching exato + fuzzy (RapidFuzz) tolerante a WER real
-- **Geração de Dados Sintéticos:** `edge-tts` (TTS multi-voz Azure) + Templates de Vaga estruturados
-- **Notificações:** Slack Webhook (Block Kit) com links de decisão por token de uso único + Webhook Genérico HTTP
-- **Segurança:** HMAC no webhook de ingestão, API key nos endpoints, guarda anti-SSRF no download de áudio
-- **Containerização:** Docker + Docker Compose (API + worker + Postgres + Redis)
+- **Messaging Queue:** Redis + RQ (Redis Queue) with configurable timeout and retries
+- **State Persistence:** PostgreSQL (SQLAlchemy / SQLModel, JSONB) + Alembic (migrations)
+- **Transcription (STT):** Deepgram nova-3 (Cloud, **default**, with native diarization) / WhisperX (Local) / OpenAI API (Cloud)
+- **Speaker Diarization:** native in Deepgram mode (default); Pyannote.audio (`pyannote/speaker-diarization-3.1`) in local/openai modes
+- **Scoring Engine:** OpenRouter (structured outputs with a JSON Schema derived from Pydantic, `temperature=0`)
+- **Evidence Validation:** exact + fuzzy matching (RapidFuzz) tolerant of real-world WER
+- **Synthetic Data Generation:** `edge-tts` (Azure multi-voice TTS) + structured Job Templates
+- **Notifications:** Slack Webhook (Block Kit) with single-use token decision links + Generic HTTP Webhook
+- **Security:** HMAC on the ingestion webhook, API key on the endpoints, anti-SSRF guard on audio download
+- **Containerization:** Docker + Docker Compose (API + worker + Postgres + Redis)
 
 ---
 
-## 📖 Decisões de Arquitetura (ADRs)
+## 📖 Architecture Decisions (ADRs)
 
-Documentamos detalhadamente as principais escolhas técnicas do projeto através de Architecture Decision Records (ADRs):
+We document the project's main technical choices in detail through Architecture Decision Records (ADRs):
 
-1. **[ADR 0001 — Fila vs. Polling](docs/adr/0001-fila-vs-polling.md):** Uso de arquitetura orientada a eventos com Redis Queue frente a consultas periódicas.
-2. **[ADR 0002 — Lookup Determinístico vs. RAG](docs/adr/0002-lookup-deterministico-vs-rag.md):** Por que optamos por lookup de arquivos locais de vagas em vez de buscas semânticas vetoriais para montagem do prompt.
-3. **[ADR 0003 — Escolha de Fila Simples (RQ) vs. Celery](docs/adr/0003-rq-vs-celery.md):** Balanceamento de complexidade e robustez com RQ.
-4. **[ADR 0004 — Risco de Viés em Avaliação de Cultura](docs/adr/0004-avaliacao-cultura-fit-bias.md):** Mitigações éticas baseadas em âncoras BARS, evidências literais obrigatórias e validação humana mandate.
+1. **[ADR 0001 — Queue vs. Polling](docs/adr/0001-fila-vs-polling.md):** Using an event-driven architecture with Redis Queue instead of periodic polling.
+2. **[ADR 0002 — Deterministic Lookup vs. RAG](docs/adr/0002-lookup-deterministico-vs-rag.md):** Why we chose lookup of local job files over vector-based semantic search for prompt assembly.
+3. **[ADR 0003 — Simple Queue (RQ) vs. Celery](docs/adr/0003-rq-vs-celery.md):** Balancing complexity and robustness with RQ.
+4. **[ADR 0004 — Bias Risk in Culture Assessment](docs/adr/0004-avaliacao-cultura-fit-bias.md):** Ethical mitigations based on BARS anchors, mandatory literal evidence and mandated human validation.
 
-Há também uma revisão completa de arquitetura em [docs/reviews/](docs/reviews/).
+There is also a full architecture review in [docs/reviews/](docs/reviews/).
 
 ---
 
-## 📂 Estrutura de Diretórios
+## 📂 Directory Structure
 
 ```text
 ├── app/
-│   ├── main.py            # FastAPI Webhooks, decisão humana, health e admin
-│   ├── models.py          # Tabela Interview e máquina de estados (inclui FALHOU)
-│   ├── database.py        # Conexão e sessão do PostgreSQL / SQLite
-│   ├── config.py          # Configurações de variáveis de ambiente (Pydantic Settings)
-│   ├── queue.py           # Conexão com Redis Queue + política de timeout/retry
-│   ├── tasks.py           # Orquestração resiliente da esteira do Worker (com lock)
-│   ├── audio_processor.py # Drivers WhisperX (local), OpenAI e Deepgram (nuvem) e Pyannote (com cache de modelos)
-│   ├── scoring.py         # Contexto, OpenRouter (structured outputs) e validador de evidência fuzzy
-│   ├── notifications.py   # Slack Block Kit e Webhook genérico com links de decisão por token
-│   ├── security.py        # Verificação HMAC do webhook e API key
-│   ├── maintenance.py     # Reconciliação de entrevistas órfãs e retenção (LGPD)
-│   ├── logging_config.py  # Logging estruturado com correlation id (interview_id)
-│   ├── text_utils.py      # Normalização de texto compartilhada
-│   └── schemas.py         # Validação Pydantic (Vagas, checklists e scorecards)
-├── alembic/               # Migrações de schema versionadas
+│   ├── main.py            # FastAPI webhooks, human decision, health and admin
+│   ├── models.py          # Interview table and state machine (includes FALHOU)
+│   ├── database.py        # PostgreSQL / SQLite connection and session
+│   ├── config.py          # Environment variable settings (Pydantic Settings)
+│   ├── queue.py           # Redis Queue connection + timeout/retry policy
+│   ├── tasks.py           # Resilient orchestration of the worker pipeline (with lock)
+│   ├── audio_processor.py # WhisperX (local), OpenAI and Deepgram (cloud) and Pyannote drivers (with model cache)
+│   ├── scoring.py         # Context, OpenRouter (structured outputs) and fuzzy evidence validator
+│   ├── notifications.py   # Slack Block Kit and generic webhook with token-based decision links
+│   ├── security.py        # Webhook HMAC verification and API key
+│   ├── maintenance.py     # Reconciliation of orphan interviews and retention (LGPD)
+│   ├── logging_config.py  # Structured logging with correlation id (interview_id)
+│   ├── text_utils.py      # Shared text normalization
+│   └── schemas.py         # Pydantic validation (Jobs, checklists and scorecards)
+├── alembic/               # Versioned schema migrations
 ├── data/
-│   └── synthetic/         # JSONs de vaga e áudios de teste gerados sinteticamente
+│   └── synthetic/         # Job JSONs and synthetically generated test audio
 ├── docs/
 │   ├── adr/               # Architecture Decision Records (ADRs)
-│   ├── reports/           # Relatório comparativo de Word Error Rate (WER)
-│   ├── reviews/           # Revisões de arquitetura
-│   └── specs/             # Especificações de design SDD (Spec Driven Development)
+│   ├── reports/           # Comparative Word Error Rate (WER) report
+│   ├── reviews/           # Architecture reviews
+│   └── specs/             # SDD design specifications (Spec Driven Development)
 ├── scripts/
-│   ├── generate_synthetic.py  # Script CLI gerador de TTS e vaga para testes locais
-│   └── run_benchmark.py       # Script CLI comparador de WER entre provedores
-├── tests/                 # Suíte de testes (pytest)
-├── Dockerfile             # Imagem da API e do worker
-├── docker-compose.yml     # Stack completa: Postgres, Redis, API e worker
-├── requirements.txt       # Dependências de produção
-├── requirements-dev.txt   # Dependências de desenvolvimento/teste
-├── requirements-ml.txt    # Backends ML pesados (WhisperX, pyannote)
-└── run_worker.py          # Worker RQ com validação fail-fast de dependências
+│   ├── generate_synthetic.py  # CLI script that generates TTS and a job for local tests
+│   └── run_benchmark.py       # CLI script comparing WER across providers
+├── tests/                 # Test suite (pytest)
+├── Dockerfile             # API and worker image
+├── docker-compose.yml     # Full stack: Postgres, Redis, API and worker
+├── requirements.txt       # Production dependencies
+├── requirements-dev.txt   # Development/test dependencies
+├── requirements-ml.txt    # Heavy ML backends (WhisperX, pyannote)
+└── run_worker.py          # RQ worker with fail-fast dependency validation
 ```
 
 ---
 
-## 🚀 Como Executar Localmente
+## 🚀 Running Locally
 
-### 1. Pré-requisitos
-- Docker instalado na máquina.
-- Python 3.11 instalado localmente.
+### 1. Prerequisites
+- Docker installed on your machine.
+- Python 3.11 installed locally.
 
-### 2. Configurando o Ambiente
-Copie o arquivo `.env.example` para `.env`:
+### 2. Setting Up the Environment
+Copy the `.env.example` file to `.env`:
 ```bash
 cp .env.example .env
 ```
-Preencha as variáveis conforme necessário:
-- `DEEPGRAM_API_KEY`: Chave da Deepgram para o provider default de transcrição + diarização (nova-3). Veja a seção *Transcrição & Diarização* abaixo.
-- `OPENROUTER_API_KEY`: Chave para o motor de Scoring (LLM).
-- `HF_TOKEN`: Token do Hugging Face com acesso ao `pyannote/speaker-diarization-3.1` — **apenas** para os providers `local`/`openai`.
-- `OPENAI_API_KEY`: apenas para `TRANSCRIPTION_PROVIDER=openai`.
-- `SLACK_WEBHOOK_URL` (Opcional): Para testar notificações no Slack.
-- **Em produção, sempre defina:** `WEBHOOK_HMAC_SECRET` (assinatura do webhook), `API_KEY` (auth dos endpoints) e `AUDIO_ALLOWED_DIR` (restringe caminhos locais de áudio).
+Fill in the variables as needed:
+- `DEEPGRAM_API_KEY`: Deepgram key for the default transcription + diarization provider (nova-3). See the *Transcription & Speaker Diarization* section below.
+- `OPENROUTER_API_KEY`: Key for the Scoring engine (LLM).
+- `HF_TOKEN`: Hugging Face token with access to `pyannote/speaker-diarization-3.1` — **only** for the `local`/`openai` providers.
+- `OPENAI_API_KEY`: only for `TRANSCRIPTION_PROVIDER=openai`.
+- `SLACK_WEBHOOK_URL` (Optional): To test Slack notifications.
+- **In production, always set:** `WEBHOOK_HMAC_SECRET` (webhook signature), `API_KEY` (endpoint auth) and `AUDIO_ALLOWED_DIR` (restricts local audio paths).
 
-### 3. Opção A — Stack completa com Docker Compose
+### 3. Option A — Full stack with Docker Compose
 ```bash
 docker compose up -d --build
 ```
-Sobe Postgres, Redis, a API (com migrações aplicadas automaticamente) e o worker
-(imagem com os backends ML instalados via `INSTALL_ML=true`).
+Starts Postgres, Redis, the API (with migrations applied automatically) and the worker
+(image with ML backends installed via `INSTALL_ML=true`).
 
-### 3. Opção B — Infra no Docker, app local
+### 3. Option B — Infra in Docker, app locally
 ```bash
 docker compose up -d postgres redis
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-# Backends ML locais (WhisperX + pyannote — pesado, requer torch):
+# Local ML backends (WhisperX + pyannote — heavy, requires torch):
 pip install -r requirements-ml.txt
 ```
 
-### 4. Aplicando as Migrações de Banco
-O schema é gerenciado pelo Alembic (a API não cria tabelas no startup):
+### 4. Applying Database Migrations
+The schema is managed by Alembic (the API does not create tables at startup):
 ```bash
 alembic upgrade head
 ```
 
-### 5. Dataset Sintético de Teste
-O repositório já inclui em `data/synthetic/` os arquivos JSON (vaga, competências
-BARS, checklist e roteiro de diálogo) de **três perfis de entrevista realistas**,
-cobrindo todo o espectro de avaliação:
+### 5. Synthetic Test Dataset
+The repository already includes, in `data/synthetic/`, the JSON files (job, BARS
+competencies, checklist and dialogue script) for **three realistic interview
+profiles**, covering the whole evaluation spectrum:
 
-| Perfil | Vaga | Candidato | Resultado esperado |
+| Profile | Job | Candidate | Expected outcome |
 |---|---|---|---|
-| `python_pleno` | Desenvolvedor Python Pleno | Forte (métricas concretas, incidente real, boas práticas) | Aprovado |
-| `dados_senior` | Engenheiro de Dados Sênior | Misto (forte em pipelines/Spark, fraco em streaming) | Próxima Etapa |
-| `frontend_junior` | Frontend Júnior (React) | Fraco (respostas vagas, conceitos confundidos) | Rejeitado |
+| `python_pleno` | Mid-level Python Developer | Strong (concrete metrics, real incident, good practices) | Approved |
+| `dados_senior` | Senior Data Engineer | Mixed (strong on pipelines/Spark, weak on streaming) | Next Step |
+| `frontend_junior` | Junior Frontend (React) | Weak (vague answers, confused concepts) | Rejected |
 
-Para gerar os áudios `.wav` multi-voz (requer acesso à internet para o TTS):
+To generate the multi-voice `.wav` audio files (requires internet access for the TTS):
 ```bash
-python scripts/generate_synthetic.py                       # todos os perfis
-python scripts/generate_synthetic.py --profile dados_senior  # um perfil específico
-python scripts/generate_synthetic.py --skip-audio          # apenas regenerar os JSONs
+python scripts/generate_synthetic.py                       # all profiles
+python scripts/generate_synthetic.py --profile dados_senior  # a specific profile
+python scripts/generate_synthetic.py --skip-audio          # only regenerate the JSONs
 ```
 
-### 6. Executando o Worker RQ e o Servidor Web
-Abra dois terminais (com o ambiente virtual ativo):
+### 6. Running the RQ Worker and the Web Server
+Open two terminals (with the virtual environment active):
 
 **Terminal 1 (Worker):**
 ```bash
 python run_worker.py
 ```
-O worker valida na inicialização que o provider configurado é executável
-(whisperx/pyannote instalados, chaves definidas) e falha imediatamente com uma
-mensagem clara caso contrário — nunca processa com dados simulados.
+On startup, the worker validates that the configured provider is runnable
+(whisperx/pyannote installed, keys set) and fails immediately with a clear
+message otherwise — it never processes with simulated data.
 
 **Terminal 2 (API FastAPI):**
 ```bash
@@ -320,30 +319,30 @@ python -m uvicorn app.main:app --reload
 
 ---
 
-## 🖥️ Interface Web (estado atual)
+## 🖥️ Web Interface (current state)
 
-O diretório `frontend/dist/` contém uma SPA React **pré-compilada** que consome
-a API (`GET /jobs`, `GET /recordings`, `GET /interviews`) para acompanhar as
-entrevistas e acionar a decisão humana. No Docker Compose ela é servida por um
-nginx em `http://localhost:5173`, origem que já está na allowlist de CORS da API.
+The `frontend/dist/` directory contains a **pre-compiled** React SPA that
+consumes the API (`GET /jobs`, `GET /recordings`, `GET /interviews`) to track
+interviews and trigger the human decision. In Docker Compose it is served by
+nginx at `http://localhost:5173`, an origin already on the API's CORS allowlist.
 
-> ⚠️ **Limitação conhecida:** apenas o *bundle* compilado está versionado — o
-> código-fonte da SPA não faz parte deste repositório. Isso significa que a
-> interface **não pode ser auditada, modificada nem recompilada** a partir de um
-> clone. Ela é um artefato de conveniência para demonstrar a esteira, não um
-> componente mantido do projeto.
+> ⚠️ **Known limitation:** only the compiled *bundle* is versioned — the SPA
+> source code is not part of this repository. This means the interface
+> **cannot be audited, modified or recompiled** from a clone. It is a
+> convenience artifact to demonstrate the pipeline, not a maintained
+> component of the project.
 >
-> A API é a interface de contrato do sistema e é completamente utilizável sem a
-> SPA (veja a validação de ponta a ponta abaixo e a documentação interativa em
-> `http://localhost:8000/docs`). Publicar o código-fonte da interface — ou
-> substituí-la por uma alternativa aberta — está em aberto como contribuição
-> bem-vinda.
+> The API is the system's contract interface and is fully usable without the
+> SPA (see the end-to-end validation below and the interactive docs at
+> `http://localhost:8000/docs`). Publishing the interface source code — or
+> replacing it with an open alternative — is an open, welcome
+> contribution.
 
 ---
 
-## 🧪 Validando o Fluxo de Ponta a Ponta
+## 🧪 Validating the End-to-End Flow
 
-### 1. Disparando a Ingestão (Webhook)
+### 1. Triggering Ingestion (Webhook)
 ```bash
 curl -X POST http://127.0.0.1:8000/webhooks/recording \
   -H "Content-Type: application/json" \
@@ -353,137 +352,136 @@ curl -X POST http://127.0.0.1:8000/webhooks/recording \
     "external_id": "gravacao-001"
   }'
 ```
-O webhook retorna HTTP `202 Accepted` com o ID da entrevista. `external_id` é a
-chave de idempotência: um webhook reenviado com o mesmo valor retorna a
-entrevista existente em vez de criar duplicata. Com `WEBHOOK_HMAC_SECRET`
-definido, envie também o header `X-Webhook-Signature` (HMAC-SHA256 do corpo).
+The webhook returns HTTP `202 Accepted` with the interview ID. `external_id` is
+the idempotency key: a re-sent webhook with the same value returns the existing
+interview instead of creating a duplicate. With `WEBHOOK_HMAC_SECRET` set, also
+send the `X-Webhook-Signature` header (HMAC-SHA256 of the body).
 
-### 2. Consultando o Status da Entrevista
+### 2. Checking the Interview Status
 ```bash
-curl -H "X-API-Key: $API_KEY" http://127.0.0.1:8000/interviews/{INTERVIEW_ID}
+curl -H "X-API-Key: *** http://127.0.0.1:8000/interviews/{INTERVIEW_ID}
 ```
-Assim que o status atingir `aguardando_aprovacao`, a notificação terá sido
-disparada com links de decisão de uso único. Se o processamento falhar, o
-status fica `falhou` com o erro em `error_log`.
+Once the status reaches `aguardando_aprovacao`, the notification will have been
+sent with single-use decision links. If processing fails, the status becomes
+`falhou` with the error in `error_log`.
 
-### 3. Decisão Humana
-Pelos botões da notificação (link GET com token de uso único), ou via API:
+### 3. Human Decision
+Via the notification buttons (GET link with single-use token), or via the API:
 ```bash
 curl -X POST http://127.0.0.1:8000/interviews/{INTERVIEW_ID}/action \
-  -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" -H "X-API-Key: *** \
   -d '{"action": "approve"}'
 ```
 
-### 4. Operação
+### 4. Operations
 ```bash
-curl http://127.0.0.1:8000/health                                  # liveness de DB e Redis
-curl -X POST -H "X-API-Key: $API_KEY" \
-  http://127.0.0.1:8000/interviews/{INTERVIEW_ID}/reprocess        # reprocessa entrevista 'falhou'
-curl -X POST -H "X-API-Key: $API_KEY" \
-  http://127.0.0.1:8000/admin/reconcile                            # re-enfileira 'recebida' órfãs
-python -m app.maintenance                                          # reconciliação + retenção via cron
+curl http://127.0.0.1:8000/health                                  # DB and Redis liveness
+curl -X POST -H "X-API-Key: *** \
+  http://127.0.0.1:8000/interviews/{INTERVIEW_ID}/reprocess        # reprocess a 'falhou' interview
+curl -X POST -H "X-API-Key: *** \
+  http://127.0.0.1:8000/admin/reconcile                            # re-enqueue orphan 'recebida' interviews
+python -m app.maintenance                                          # reconciliation + retention via cron
 ```
 
 ---
 
-## 🎙️ Transcrição & Diarização — Provedores
+## 🎙️ Transcription & Speaker Diarization — Providers
 
-A etapa de transcrição/diarização é plugável via `TRANSCRIPTION_PROVIDER`:
+The transcription/diarization step is pluggable via `TRANSCRIPTION_PROVIDER`:
 
-| Provider | Transcrição | Diarização | Requisitos | Custo (~1h de áudio) | Tempo (~1h de áudio) |
+| Provider | Transcription | Speaker Diarization | Requirements | Cost (~1h of audio) | Time (~1h of audio) |
 |---|---|---|---|---|---|
-| `deepgram` (**default**) | Deepgram nova-3 (API) | **Nativa, na mesma chamada** | `DEEPGRAM_API_KEY` | ~US$ 0,31 (`multi`) | ~1–2 min |
-| `local` | WhisperX (CPU/GPU) | pyannote.audio | `requirements-ml.txt` + `HF_TOKEN` | zero (compute próprio) | ~15 min+ em CPU |
-| `openai` | whisper-1 (API) | pyannote.audio (local) | `OPENAI_API_KEY` + ML local + `HF_TOKEN` | ~US$ 0,36 + compute | híbrido |
+| `deepgram` (**default**) | Deepgram nova-3 (API) | **Native, in the same call** | `DEEPGRAM_API_KEY` | ~US$ 0.31 (`multi`) | ~1–2 min |
+| `local` | WhisperX (CPU/GPU) | pyannote.audio | `requirements-ml.txt` + `HF_TOKEN` | zero (own compute) | ~15 min+ on CPU |
+| `openai` | whisper-1 (API) | pyannote.audio (local) | `OPENAI_API_KEY` + local ML + `HF_TOKEN` | ~US$ 0.36 + compute | hybrid |
 
-No modo `deepgram`, os segmentos já chegam rotulados por speaker (`SPEAKER_00`,
-`SPEAKER_01`, ... — mesmo formato do pyannote) e a etapa `DIARIZANDO` da esteira
-vira um passthrough: a detecção é feita **pelos dados persistidos** (segmentos com
-chave `speaker`), então entrevistas retomadas após troca de provider se comportam
-corretamente. O worker também dispensa whisperx/pyannote/HF_TOKEN no startup
-nesse modo.
+In `deepgram` mode, segments already arrive labeled by speaker (`SPEAKER_00`,
+`SPEAKER_01`, ... — same format as pyannote) and the pipeline's `DIARIZANDO`
+step becomes a passthrough: detection is driven **by the persisted data**
+(segments with a `speaker` key), so interviews resumed after a provider switch
+behave correctly. In this mode, the worker also skips the whisperx/pyannote/
+HF_TOKEN requirements at startup.
 
-**Gotchas do provider `deepgram` (aprendidos empiricamente):**
-- `DEEPGRAM_LANGUAGE` é obrigatório: o default da Deepgram é inglês e, com
-  idioma errado, a API retorna transcript **vazio** (e cobra mesmo assim).
-- Use `multi` (code-switching, default deste repo), não `pt`: o modo monolíngue
-  derruba/mangla os termos técnicos em inglês embutidos na fala ("queries",
-  "deploy", "pull request", "GitHub"...), que são exatamente o vocabulário de que
-  o scoring e o validador de evidências dependem. O `multi` custa ~20% mais e
-  preserva a grande maioria deles.
-- O OpenRouter tem endpoint de transcrição (`/api/v1/audio/transcriptions`) que
-  serve o nova-3, mas o schema normalizado dele **descarta os labels de speaker**
-  — por isso o provider fala com a API da Deepgram diretamente.
+**`deepgram` provider gotchas (learned empirically):**
+- `DEEPGRAM_LANGUAGE` is required: Deepgram's default is English and, with the
+  wrong language, the API returns an **empty** transcript (and still charges).
+- Use `multi` (code-switching, this repo's default), not `pt`: the monolingual
+  mode drops/mangles the English technical terms embedded in the speech
+  ("queries", "deploy", "pull request", "GitHub"...), which are exactly the
+  vocabulary the scoring and the evidence validator depend on. `multi` costs
+  ~20% more and preserves the vast majority of them.
+- OpenRouter has a transcription endpoint (`/api/v1/audio/transcriptions`) that
+  serves nova-3, but its normalized schema **drops the speaker labels** — which
+  is why the provider talks to the Deepgram API directly.
 
-**Validação com áudio real:** o provider foi validado contra uma entrevista
-técnica real de 53 min em pt-BR ([Desenvolvedor Jr | Simulação de entrevista
+**Validation with real audio:** the provider was validated against a real
+53-minute pt-BR technical interview ([Desenvolvedor Jr | Simulação de entrevista
 Técnica — Mate academy Brasil](https://www.youtube.com/live/KPqLBNXewUQ)):
-transcrição + diarização em 68s (~US$ 0,28), 3 speakers detectados corretamente
-(apresentador, entrevistador, candidato) e termos técnicos (JavaScript, React,
-async/await, promises, deploy...) preservados. O áudio **não é versionado no
-repositório** (conteúdo de terceiros); para reproduzir o teste, baixe a trilha
-localmente, por exemplo com `yt-dlp -f 139 -o entrevista.m4a <url>`, e envie o
-arquivo pelo webhook de ingestão como qualquer outra gravação.
+transcription + diarization in 68s (~US$ 0.28), 3 speakers correctly detected
+(host, interviewer, candidate) and technical terms (JavaScript, React,
+async/await, promises, deploy...) preserved. The audio is **not versioned in
+the repository** (third-party content); to reproduce the test, download the
+track locally — e.g. with `yt-dlp -f 139 -o entrevista.m4a <url>` — and send
+the file through the ingestion webhook like any other recording.
 
 ---
 
-## 📊 Relatório de Benchmark WER
+## 📊 WER Benchmark Report
 
-Compara a taxa de erro de palavra (WER) e a preservação de termos técnicos
-(code-switching PT-EN) entre os provedores, **executando-os de verdade**:
+Compares the word error rate (WER) and the preservation of technical terms
+(PT-EN code-switching) across providers, **actually running them**:
 
 ```bash
-# Todos os provedores disponíveis
+# All available providers
 python scripts/run_benchmark.py
 
-# Ou escolhendo quais comparar
+# Or pick which ones to compare
 python scripts/run_benchmark.py --providers deepgram local
 ```
 
-O relatório é salvo em `docs/reports/benchmark_wer_report.md`. Provedores sem
-dependência ou chave configurada são listados como **pulados**, com o motivo —
-o relatório nunca contém números simulados.
+The report is saved to `docs/reports/benchmark_wer_report.md`. Providers
+without the required dependency or key configured are listed as **skipped**,
+with the reason — the report never contains simulated numbers.
 
-> ⚠️ Os áudios em `data/synthetic/*.wav` **não são versionados** (são pesados e
-> regeneráveis). Gere-os antes de rodar o benchmark:
+> ⚠️ The audio files in `data/synthetic/*.wav` are **not versioned** (they are
+> heavy and regenerable). Generate them before running the benchmark:
 > ```bash
 > python scripts/generate_synthetic.py
 > ```
-> Um `.wav` local sobrando de um diálogo antigo invalida silenciosamente o WER;
-> o script detecta essa inconsistência e avisa.
+> A leftover local `.wav` from an old dialogue silently invalidates the WER;
+> the script detects this inconsistency and warns you.
 
 ---
 
-## 🩺 Executando a Suíte de Testes
+## 🩺 Running the Test Suite
 
-Os mesmos gates aplicados pelo CI:
+The same gates applied by CI:
 
 ```bash
 ruff check .                                    # lint
-mypy                                            # verificação de tipos
-pytest                                          # suíte completa
+mypy                                            # type checking
+pytest                                          # full suite
 pytest --cov=app --cov-report=term-missing --cov-fail-under=78
-pip-audit -r requirements.txt --strict          # vulnerabilidades conhecidas
+pip-audit -r requirements.txt --strict          # known vulnerabilities
 ```
 
-A suíte roda **sem** os backends de ML (`requirements-ml.txt`): as dependências
-pesadas são simuladas de forma determinística. Os testes de integração em
-`tests/test_integration_e2e.py` exigem Postgres e Redis no ar e que o worker de
-produção esteja parado — veja o [CONTRIBUTING.md](CONTRIBUTING.md).
+The suite runs **without** the ML backends (`requirements-ml.txt`): the heavy
+dependencies are mocked deterministically. The integration tests in
+`tests/test_integration_e2e.py` require Postgres and Redis to be up and the
+production worker to be stopped — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## 🤝 Contribuindo
+## 🤝 Contributing
 
-Contribuições são bem-vindas! Leia o [CONTRIBUTING.md](CONTRIBUTING.md) para o
-fluxo de trabalho (Spec Driven Development, convenções de branch e commit,
-checks locais) e o [Código de Conduta](CODE_OF_CONDUCT.md). Mudanças grandes
-começam por uma issue; decisões arquiteturais viram ADRs em `docs/adr/`.
+Contributions are welcome! Read [CONTRIBUTING.md](CONTRIBUTING.md) for the
+workflow (Spec Driven Development, branch and commit conventions, local checks)
+and the [Code of Conduct](CODE_OF_CONDUCT.md). Large changes start with an
+issue; architectural decisions become ADRs in `docs/adr/`.
 
-Vulnerabilidades de segurança seguem o processo privado do
-[SECURITY.md](SECURITY.md) — nunca uma issue pública.
+Security vulnerabilities follow the private process in
+[SECURITY.md](SECURITY.md) — never a public issue.
 
-## 📄 Licença
+## 📄 License
 
-Distribuído sob a licença [MIT](LICENSE).
-
+Distributed under the [MIT](LICENSE) license.
