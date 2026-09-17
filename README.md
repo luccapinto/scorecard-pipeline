@@ -23,7 +23,7 @@ steps). Switching is an environment variable; the pipeline, the state machine an
 - [Architecture Decisions (ADRs)](#-architecture-decisions-adrs)
 - [Directory Structure](#-directory-structure)
 - [Running Locally](#-running-locally)
-- [Web Interface](#%EF%B8%8F-web-interface-current-state)
+- [Web Interface](#%EF%B8%8F-web-interface)
 - [Validating the End-to-End Flow](#-validating-the-end-to-end-flow)
 - [Transcription & Speaker Diarization — Providers](#%EF%B8%8F-transcription--speaker-diarization--providers)
 - [WER Benchmark](#-wer-benchmark-report)
@@ -319,24 +319,27 @@ python -m uvicorn app.main:app --reload
 
 ---
 
-## 🖥️ Web Interface (current state)
+## 🖥️ Web Interface
 
-The `frontend/dist/` directory contains a **pre-compiled** React SPA that
-consumes the API (`GET /jobs`, `GET /recordings`, `GET /interviews`) to track
-interviews and trigger the human decision. In Docker Compose it is served by
-nginx at `http://localhost:5173`, an origin already on the API's CORS allowlist.
+The `frontend/` directory holds the **source** of a React + TypeScript SPA that
+works as a pipeline dashboard: per-stage interview counts, items that need human
+action (`aguardando_aprovacao` and `falhou`) surfaced first, the scorecard with a
+loud visual alert for unverified evidence (possible LLM hallucination), the
+transcript split by speaker, and a two-step confirmation for approve/reject.
 
-> ⚠️ **Known limitation:** only the compiled *bundle* is versioned — the SPA
-> source code is not part of this repository. This means the interface
-> **cannot be audited, modified or recompiled** from a clone. It is a
-> convenience artifact to demonstrate the pipeline, not a maintained
-> component of the project.
->
-> The API is the system's contract interface and is fully usable without the
-> SPA (see the end-to-end validation below and the interactive docs at
-> `http://localhost:8000/docs`). Publishing the interface source code — or
-> replacing it with an open alternative — is an open, welcome
-> contribution.
+- **In Docker Compose** the SPA is built from source (multi-stage Node → nginx)
+  and served at `http://localhost:5173`, an origin already on the API's CORS
+  allowlist.
+- **In development**: `cd frontend && npm install && npm run dev` (port 5173 is
+  mandatory — the CORS allowlist depends on it).
+- The API URL and `X-API-Key` are configured **at runtime** in the UI itself
+  (persisted in the browser's `localStorage`) — no key or host is baked into the
+  build.
+- How to run, build and test: see [`frontend/README.md`](frontend/README.md).
+
+The API remains the system's contract interface and is fully usable without the
+SPA (see the end-to-end validation below and the interactive docs at
+`http://localhost:8000/docs`).
 
 ---
 

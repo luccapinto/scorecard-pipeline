@@ -1,0 +1,4 @@
+# Keep the build context small and reproducible: dependencies are installed
+# with `npm ci` inside the image, and dist is produced by the build stage.
+node_modules
+dist

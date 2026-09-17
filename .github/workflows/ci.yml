@@ -142,6 +142,34 @@ jobs:
           path: coverage.xml
           retention-days: 7
 
+  frontend:
+    name: Frontend (typecheck, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v5
+        with:
+          # Matches the build stage of frontend/Dockerfile (node:24-alpine).
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test -- --run
+
+      - name: Build
+        run: npm run build
+
   docker:
     name: Docker build
     runs-on: ubuntu-latest
@@ -175,3 +203,24 @@ jobs:
             python -c "import app.main; print('app imports OK')"
           docker run --rm scorecard-api:ci \
             alembic upgrade head --sql > /dev/null && echo "alembic offline OK"
+
+      # frontend/dist is not committed; docker compose builds the SPA image
+      # from source. Prove that build works and that nginx actually serves
+      # the bundle.
+      - name: Build frontend image
+        uses: docker/build-push-action@v7
+        with:
+          context: frontend
+          push: false
+          load: true
+          tags: scorecard-frontend:ci
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Smoke test the frontend image
+        run: |
+          docker run -d --rm -p 8080:80 --name frontend-ci scorecard-frontend:ci
+          sleep 2
+          curl -fsS http://localhost:8080 | grep -q "Scorecard Pipeline" \
+            && echo "frontend serves OK"
+          docker stop frontend-ci
