@@ -104,15 +104,57 @@ describe('demo mode isolation', () => {
     expect(network.calls()).toBe(0);
   });
 
-  it('advances the pipeline, creates and reprocesses without a request', async () => {
+  it('advances the pipeline offline, and actually moves an interview a stage', async () => {
     const user = userEvent.setup();
-    goTo('esteira');
+    goTo('entrevistas/demo-fabio-simulado');
     render(<App />);
 
-    await screen.findByRole('heading', { name: 'Esteira', level: 1 });
-    await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
+    // Seeded at `recebida`; one clock step must carry it to `transcrevendo`.
+    await screen.findByText('Recebida');
     await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
 
+    await waitFor(() => {
+      expect(screen.getByText('Transcrevendo')).toBeInTheDocument();
+    });
+    expect(network.calls()).toBe(0);
+  });
+
+  it('reprocesses a failed interview offline, bumping the retry count', async () => {
+    const user = userEvent.setup();
+    goTo('entrevistas/demo-lucas-maquete');
+    render(<App />);
+
+    // Seeded as `falhou` with retry_count 1.
+    await screen.findByRole('heading', { name: /O processamento falhou/i });
+    await user.click(screen.getByRole('button', { name: /Reprocessar/i }));
+
+    // app/tasks.py resumes from the last checkpoint and increments the
+    // counter; with no transcription saved that means TRANSCREVENDO.
+    await waitFor(() => {
+      expect(screen.getByText('Transcrevendo')).toBeInTheDocument();
+    });
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(network.calls()).toBe(0);
+  });
+
+  it('creates an interview offline and deduplicates a repeated external_id', async () => {
+    const user = userEvent.setup();
+    goTo('nova');
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Nova entrevista', level: 1 });
+    await user.selectOptions(screen.getByLabelText('Vaga'), 'python_pleno');
+    await user.selectOptions(
+      screen.getByLabelText('Gravação'),
+      '/srv/app/data/synthetic/interview_python_pleno.wav',
+    );
+    // This external_id is already on a seeded interview, so the webhook must
+    // return the existing one instead of creating a duplicate.
+    await user.type(screen.getByLabelText(/ID externo/), 'zoom-rec-8841-b');
+    await user.click(screen.getByRole('button', { name: /Disparar webhook/i }));
+
+    expect(await screen.findByText(/Requisição deduplicada/i)).toBeInTheDocument();
+    expect(screen.getByText(/nada novo foi criado/i)).toBeInTheDocument();
     expect(network.calls()).toBe(0);
   });
 

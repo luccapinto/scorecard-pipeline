@@ -129,10 +129,23 @@ export function HealthView() {
           {state.kind === 'loaded' && state.health.status === 'ok' && (
             <>
               <StatusLine tone="ok" icon="check" text="Operacional (status: ok)" />
-              <p className="health-note">
-                A API respondeu 200 em <code className="mono">/health</code> e todas as dependências
-                declaradas estão de pé.
-              </p>
+              {source.mode === 'demo' ? (
+                // Under the synthetic banner or not, claiming "the API
+                // answered 200" when no request was made would be the one
+                // fabricated statement in the whole interface. Say what
+                // actually happened instead.
+                <p className="health-note">
+                  <strong>Estado simulado.</strong> Nenhuma requisição foi feita: no modo
+                  demonstração este cartão mostra como um servidor saudável apareceria aqui.
+                  Troque para o modo API para consultar o <code className="mono">/health</code>{' '}
+                  de verdade.
+                </p>
+              ) : (
+                <p className="health-note">
+                  A API respondeu 200 em <code className="mono">/health</code> e todas as
+                  dependências declaradas estão de pé.
+                </p>
+              )}
             </>
           )}
 

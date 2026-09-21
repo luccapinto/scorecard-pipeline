@@ -182,19 +182,33 @@ pessoas.
 
 ## Testes
 
-Vitest + Testing Library (jsdom). **227 testes.**
+Vitest + Testing Library (jsdom). **242 testes.**
 
 ```bash
 npm test -- --run
 ```
 
 Cobrem, entre outros: `evidence_verified` nos três estados; o fluxo de decisão
-completo, com confirmação nominal e o 400 de status inválido; parsing tolerante
-de `scorecard`/`transcription_raw` duplo-codificados e de transcrição em texto
-plano; 401/403 com mensagem de chave; idempotência (`deduplicated: true`);
-reprocessamento a partir de `falhou`; o isolamento de rede do modo demo; o
-parse de todas as rotas nos dois modos; as contagens e filtros da esteira; e a
-correspondência do payload Block Kit com `app/notifications.py`.
+completo, com confirmação nominal, o 400 de status inválido e **o rollback
+visível da atualização otimista**; parsing tolerante de
+`scorecard`/`transcription_raw` duplo-codificados e de transcrição em texto
+plano; 401/403 com mensagem de chave; **idempotência (`deduplicated: true`)
+exercitada pela própria tela de ingestão**; **reprocessamento a partir de
+`falhou`, verificando a transição e o incremento de `retry_count`**; o
+isolamento de rede do modo demo; o parse de todas as rotas nos dois modos; as
+contagens e filtros da esteira; e **a virtualização acima de 200 linhas**.
+
+Dois testes merecem destaque porque defendem afirmações que seriam fáceis de
+exagerar:
+
+- `src/features/integrations/blockKit.golden.test.ts` compara o payload Block
+  Kit do cliente com um **fixture gerado executando o
+  `SlackNotification.notify_scorecard` real do Python**. Hoje são idênticos,
+  byte a byte, exceto pelo token — que o cliente não pode ter. Se divergirem, o
+  Python está certo e a prévia está mentindo.
+- `src/lib/evidence.test.ts` fixa o port de `clean_text` contra a saída real da
+  função Python em 12 casos, incluindo o travessão, que **não** é pontuação
+  para o backend.
 
 ## Decisões de dependência
 
