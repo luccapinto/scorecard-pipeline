@@ -326,6 +326,13 @@ It is the review surface for the pipeline: where each interview is, what needs
 a human, and — the point of the whole system — an unmissable alarm when the
 model cited a sentence that is not in the transcript.
 
+> **▶ Try it live, no clone and no backend required:**
+> **<https://luccapinto.github.io/scorecard-pipeline/#/demo/esteira>**
+>
+> That link opens the SPA in **demonstration mode**: a synthetic, deterministic
+> dataset that runs entirely in your browser. No request leaves the page, so
+> there is nothing to install and nothing to configure.
+
 ![Pipeline dashboard](docs/assets/esteira.png)
 
 ### Two modes, never mixed
@@ -351,17 +358,75 @@ ports the normalisation rule from `app/text_utils.py::clean_text` and actually
 searches the transcript, so a flagged quote is flagged because it genuinely is
 not there.
 
-### Screens
+### The screens
 
-| | |
+#### The scorecard, and the alarm the whole system exists for
+
+Each competency shows its 1–5 score **and the BARS anchor text behind it** —
+the number alone means nothing. When a citation cannot be found in the
+transcript, the card becomes a loud, structural alert: icon, wording, border
+and position, never colour alone. It also shows the closest passage the search
+*did* find, so the reviewer can judge rather than just be warned.
+
+![Scorecard with two unverified citations](docs/assets/entrevista-alerta.png)
+
+Clicking a citation scrolls to it in the transcript and highlights it in place.
+
+#### The approval queue
+
+Ordered by waiting time, with everything needed to decide visible without
+opening the item: role, the model's recommendation, the average score, and how
+many citations were actually located. **There is no bulk approval**, by design —
+not even in the demo.
+
+![Approval queue](docs/assets/aprovacoes.png)
+
+#### Integrations and messages
+
+A faithful rendering of the Slack Block Kit payload `app/notifications.py`
+actually builds — including the per-competency verification marker and the
+omission of the action buttons when there is no approval token — with the raw
+JSON one click away.
+
+![Integrations and Slack preview](docs/assets/integracoes.png)
+
+#### The candidate funnel — labelled as synthetic, on the screen
+
+This is the "ATS" view, and it is the clearest example of the honesty rule:
+hiring phases do not exist in the backend, so the screen says so in a banner
+before showing anything.
+
+![Candidate funnel](docs/assets/funil.png)
+
+#### Failures, and getting out of them
+
+`error_log` is a full Python traceback. It is split into what broke and where,
+with the frames folded away until asked for, plus the reprocess action.
+
+![Failed interview with traceback](docs/assets/falha.png)
+
+#### Ingestion, with the contract made legible
+
+The exact webhook request, the HMAC signature marked as server-side only,
+idempotency via `external_id`, and `202` explained as acceptance rather than
+completion.
+
+![Ingestion and webhook inspector](docs/assets/ingestao.png)
+
+#### Both themes are designed, and it works on a phone
+
+Dark is an independently chosen palette, not a filter over light, and every
+colour pair in both themes is checked against WCAG AA in CI.
+
+| Dark theme | Mobile, 390 px |
 | --- | --- |
-| ![Scorecard with unverified evidence](docs/assets/entrevista-alerta.png) **Scorecard.** Each competency shows its 1–5 score *and the BARS anchor text behind it*. An unverified citation is a loud, structural alarm — never colour alone — and the panel shows the closest passage the search did find. | ![Approval queue](docs/assets/aprovacoes.png) **Approval queue.** Ordered by waiting time, with everything needed to decide visible without opening the item. No bulk approval exists, by design. |
-| ![Integrations and messages](docs/assets/integracoes.png) **Integrations.** A faithful rendering of the Slack Block Kit payload `app/notifications.py` actually builds, plus the one-time decision link with the token marked as unobtainable. | ![Candidate funnel](docs/assets/funil.png) **Candidate funnel** (demo only). Labelled on the screen as synthetic, because hiring phases are not the pipeline's processing status. |
-| ![Failed interview](docs/assets/falha.png) **Failures.** The Python traceback is split into what broke and where, with the frames folded away, plus reprocessing. | ![Ingestion](docs/assets/ingestao.png) **Ingestion.** The exact webhook request, the HMAC signature marked as server-side only, idempotency via `external_id`, and `202` explained as acceptance rather than completion. |
-| ![Dark theme](docs/assets/esteira-escuro.png) **Both themes are designed**, not filtered — each is an independently chosen palette, and every colour pair is checked against WCAG AA in CI. | ![Mobile layout](docs/assets/esteira-mobile.png) **Responsive** from 360 px up, with the pipeline table usable on a phone. |
+| ![Dashboard in dark theme](docs/assets/esteira-escuro.png) | ![Dashboard on mobile](docs/assets/esteira-mobile.png) |
 
-Screenshots are generated by `frontend/scripts/screenshots.mjs` from demo mode,
-which is deterministic precisely so they can be reproduced.
+More screens — the interview list, observability and settings — are in
+[`docs/assets/`](docs/assets/).
+
+All screenshots are generated by `frontend/scripts/screenshots.mjs` from demo
+mode, which is deterministic precisely so they can be reproduced on any machine.
 
 ### Running it
 

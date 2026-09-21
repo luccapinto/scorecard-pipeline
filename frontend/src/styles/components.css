@@ -1743,7 +1743,10 @@ input::placeholder {
 .board {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(250px, 1fr);
+  /* 210px lets all five stages fit a 1440px laptop without horizontal
+     scrolling; the board still scrolls when there are more stages or less
+     room. */
+  grid-auto-columns: minmax(210px, 1fr);
   /* Same min-width:auto trap: without this the flex parent lets the board
      grow past the viewport instead of engaging its own scroller. */
   min-width: 0;
@@ -1759,6 +1762,28 @@ input::placeholder {
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-2);
+}
+/* Truncate by available width rather than a fixed character count: a real
+   interview id is a UUID and a demo id is a slug, and 8 characters is
+   useless for the latter. */
+.fcard__name--id {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+.fcard__pending {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  font-style: italic;
+}
+.fcard__move-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
 }
 .board__title {
   display: flex;

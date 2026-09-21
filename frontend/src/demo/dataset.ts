@@ -501,7 +501,7 @@ export function buildFunnelCards(
 
     return {
       interviewId: interview.id,
-      candidateName: interview.scorecard?.candidate_name ?? 'Candidatura sem scorecard',
+      candidateName: interview.scorecard?.candidate_name ?? null,
       jobId: interview.job_id,
       jobTitle: profile?.title ?? interview.job_id ?? '—',
       stageId: stageById[interview.id] ?? 'triagem',

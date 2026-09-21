@@ -73,7 +73,13 @@ export interface FunnelStage {
 
 export interface FunnelCard {
   interviewId: string;
-  candidateName: string;
+  /**
+   * `null` until the scorecard exists — the name is produced by the model,
+   * not supplied at ingestion, so before scoring there is genuinely no name
+   * to show. The UI falls back to the interview id rather than repeating a
+   * placeholder that makes every early-stage card look identical.
+   */
+  candidateName: string | null;
   jobId: string | null;
   jobTitle: string;
   stageId: string;

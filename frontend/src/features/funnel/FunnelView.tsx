@@ -137,10 +137,17 @@ function CandidateCard({
 }) {
   const selectId = useId();
 
+  // Before scoring there is no candidate name, because the name comes out of
+  // the model's scorecard. Falling back to the interview id keeps each early
+  // card distinguishable, instead of a column of identical placeholders. The
+  // id is not shortened here — CSS truncates it to the column width, which
+  // suits both a UUID and a demo slug.
+  const label = card.candidateName ?? card.interviewId;
+
   return (
     <li className={`fcard ${card.evidenceAlert ? 'fcard--flagged' : ''}`}>
       <a
-        className="fcard__name"
+        className={`fcard__name ${card.candidateName === null ? 'fcard__name--id' : ''}`}
         href={hrefFor({
           mode: route.mode,
           name: 'interview',
@@ -148,9 +155,12 @@ function CandidateCard({
           clockAnchor: route.clockAnchor,
         })}
       >
-        {card.candidateName}
+        {label}
       </a>
       <p className="fcard__job">{card.jobTitle}</p>
+      {card.candidateName === null && (
+        <p className="fcard__pending">Nome aparece quando o scorecard fica pronto.</p>
+      )}
 
       <div className="fcard__signals">
         <span className="chip chip--muted">
@@ -167,17 +177,23 @@ function CandidateCard({
       <p className="fcard__age">há {formatDuration(now - card.enteredStageAt)} nesta fase</p>
 
       <div className="fcard__move">
-        <label htmlFor={selectId} className="sr-only">
-          Mover {card.candidateName} para outra fase
+        {/* A visible "Mover para" label keeps the option text short enough to
+            read; prefixing every option truncated them in a narrow column. */}
+        <label htmlFor={selectId} className="fcard__move-label">
+          Mover para
         </label>
+        <span className="sr-only" id={`${selectId}-ctx`}>
+          Fase de {label} no funil
+        </span>
         <select
           id={selectId}
+          aria-describedby={`${selectId}-ctx`}
           value={card.stageId}
           onChange={(event) => onMove(card.interviewId, event.target.value)}
         >
           {stages.map((stage) => (
             <option key={stage.id} value={stage.id}>
-              Mover para: {stage.label}
+              {stage.label}
             </option>
           ))}
         </select>
