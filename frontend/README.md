@@ -197,7 +197,7 @@ pessoas.
 
 ## Testes
 
-Vitest + Testing Library (jsdom). **259 testes.**
+Vitest + Testing Library (jsdom). **260 testes.**
 
 ```bash
 npm test -- --run

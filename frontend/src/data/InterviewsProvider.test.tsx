@@ -65,6 +65,29 @@ describe('InterviewsProvider dataset identity', () => {
     expect(skeleton.seen()).toBe(false);
   });
 
+  it('refetches the shared list on a demo action instead of freezing', async () => {
+    const user = userEvent.setup();
+    goTo('entrevistas');
+    render(<App />);
+
+    // The stage tiles are computed from the shared provider's projection, so
+    // they are the most direct read of "did the shared list actually
+    // refetch?". If the revision signal were missing — or the source were
+    // stabilised without one — these counters would sit frozen.
+    const tileCount = (label: string) =>
+      screen
+        .getByText(label, { selector: '.tile__label' })
+        .closest('.tile')
+        ?.querySelector('.tile__count')?.textContent;
+
+    await waitFor(() => expect(tileCount('Recebida')).toBe('1'));
+
+    // One step carries the single `recebida` interview into `transcrevendo`.
+    await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
+
+    await waitFor(() => expect(tileCount('Recebida')).toBe('0'));
+  });
+
   it('announces a status change produced by advancing the pipeline', async () => {
     const user = userEvent.setup();
     goTo('entrevistas');
