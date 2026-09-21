@@ -70,22 +70,35 @@ describe('InterviewsProvider dataset identity', () => {
     goTo('entrevistas');
     render(<App />);
 
-    // The stage tiles are computed from the shared provider's projection, so
-    // they are the most direct read of "did the shared list actually
-    // refetch?". If the revision signal were missing — or the source were
-    // stabilised without one — these counters would sit frozen.
+    // Anchored on the row's href, not on a candidate name: the only rows that
+    // can advance are the ones still in a processing stage, and those have no
+    // scorecard yet — so they have no name to match on (the name is produced
+    // by the scoring step). Picking a named row instead would silently stop
+    // exercising the revision signal, because named rows cannot advance.
+    const row = () =>
+      document.querySelector('a[href*="demo-fabio-simulado"]')?.closest('.row') ?? null;
+
+    // The stage tiles read the same projection, so they prove the provider
+    // refetched; the row proves the memoised list item actually re-rendered
+    // with it. Both matter: a broken memo would freeze the row alone.
     const tileCount = (label: string) =>
       screen
         .getByText(label, { selector: '.tile__label' })
         .closest('.tile')
         ?.querySelector('.tile__count')?.textContent;
 
-    await waitFor(() => expect(tileCount('Recebida')).toBe('1'));
+    await waitFor(() => {
+      expect(row()).toHaveTextContent('Recebida');
+      expect(tileCount('Recebida')).toBe('1');
+    });
 
     // One step carries the single `recebida` interview into `transcrevendo`.
     await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
 
-    await waitFor(() => expect(tileCount('Recebida')).toBe('0'));
+    await waitFor(() => {
+      expect(row()).toHaveTextContent('Transcrevendo');
+      expect(tileCount('Recebida')).toBe('0');
+    });
   });
 
   it('announces a status change produced by advancing the pipeline', async () => {
