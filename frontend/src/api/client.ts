@@ -9,21 +9,20 @@ import {
   NotFoundError,
 } from './errors';
 import { normalizeInterview } from './normalize';
+import { recordRequest } from './telemetry';
 import type {
   ActionResponse,
   CreateInterviewPayload,
   CreateInterviewResponse,
   DecisionAction,
   Health,
+  IntegrationsStatus,
   Interview,
   Job,
   Recording,
 } from './types';
 
-export interface ApiConfig {
-  baseUrl: string;
-  apiKey: string;
-}
+import type { ApiConfig } from '../config/settings';
 
 function joinUrl(baseUrl: string, path: string): string {
   const base = baseUrl.replace(/\/+$/, '');
@@ -73,17 +72,35 @@ async function request<T>(
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (config.apiKey) headers['X-API-Key'] = config.apiKey;
 
+  const method = options.method ?? 'GET';
+  const startedAt = Date.now();
+
   let res: Response;
   try {
     res = await fetch(joinUrl(config.baseUrl, path), {
-      method: options.method ?? 'GET',
+      method,
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     });
   } catch {
+    recordRequest({
+      path,
+      method,
+      durationMs: Date.now() - startedAt,
+      status: null,
+      at: Date.now(),
+    });
     // Rejected fetch = transport failure (offline, refused, CORS, bad host).
     throw new ApiUnavailableError();
   }
+
+  recordRequest({
+    path,
+    method,
+    durationMs: Date.now() - startedAt,
+    status: res.status,
+    at: Date.now(),
+  });
 
   if (!res.ok && !options.allowNonOk) {
     await throwForStatus(res);
@@ -100,6 +117,10 @@ async function request<T>(
 export function getHealth(config: ApiConfig): Promise<Health> {
   // 503 carries a valid { status: 'unhealthy', problems } body.
   return request<Health>(config, '/health', { allowNonOk: true });
+}
+
+export function getIntegrations(config: ApiConfig): Promise<IntegrationsStatus> {
+  return request<IntegrationsStatus>(config, '/integrations');
 }
 
 export function listJobs(config: ApiConfig): Promise<Job[]> {

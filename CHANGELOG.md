@@ -27,11 +27,74 @@ versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
   clone novo sobe a interface sem passo manual.
 - Job `frontend` no CI (typecheck, testes, build) e smoke test da imagem da
   SPA no job de Docker.
+- Endpoint `GET /integrations` (protegido por `X-API-Key`): expõe o estado de
+  configuração das integrações (Slack, webhook de notificação, transcrição,
+  pontuação, HMAC e API key) para a tela de integrações da SPA. Retorna
+  apenas booleanos e nomes de provider/modelo — nunca segredos, URLs ou
+  caminhos, nem mascarados.
+- **Interface de produto no frontend**, com dois modos explícitos na URL e
+  nunca misturados (ver [ADR 0005](docs/adr/0005-dois-modos-api-e-demonstracao.md)):
+  - **Modo API** (`#/...`), fonte de verdade. Onde o backend não modela algo
+    — candidato como entidade, fases de funil, autoria de decisão, histórico
+    de mensagens, âncoras BARS — a UI declara a ausência e explica o motivo,
+    em vez de fabricar o dado.
+  - **Modo demonstração** (`#/demo/...`), dataset sintético determinístico de
+    18 entrevistas cobrindo os 8 status, servido inteiramente no navegador.
+    **Nenhuma requisição sai da página**, garantia verificada por um teste que
+    dirige a aplicação real com `fetch`, `XMLHttpRequest` e `sendBeacon`
+    substituídos por espiões que lançam. Relógio ancorado (`?t=`) torna cada
+    tela reproduzível pixel a pixel.
+- Shell de aplicação: navegação lateral persistente, breadcrumb, alternância
+  de modo e de tema visíveis, e novas rotas (`esteira`, `aprovacoes`,
+  `integracoes`, `saude`, `configuracao`, `funil`), todas em hash router com
+  deep link e refresh funcionando.
+- Dashboard da esteira com métricas por período: tempo desde a última
+  atualização, taxa de evidência verificada, distribuição de notas 1–5 e
+  contagem de falhas. Gráficos em SVG próprio, cada um com tabela equivalente
+  navegável por leitor de tela.
+- Scorecard mostra o **texto da âncora BARS** correspondente à nota, não só o
+  número, com a escala 1–5 completa sob demanda. Clicar na citação a localiza
+  e destaca na transcrição; quando a evidência não é verificada, a interface
+  mostra que a busca não encontrou e qual foi o trecho mais parecido.
+- Verificação de citação no cliente (`src/lib/evidence.ts`): port da
+  normalização de `app/text_utils.py::clean_text`, fixado contra a saída real
+  do Python. É o que permite derivar — e não declarar — o
+  `evidence_verified` do dataset de demonstração.
+- Tela de integrações com prévia fiel do payload Slack Block Kit montado por
+  `app/notifications.py`, incluindo o marcador de verificação por competência
+  e a omissão dos botões quando não há token; JSON bruto sob demanda; e a
+  forma do link de decisão com o token sempre marcado como não exposto.
+- Fila de aprovação ordenada por espera, com o necessário para decidir visível
+  sem abrir o item. Confirmação em duas etapas que nomeia o candidato e repete
+  o alerta de evidência. **Sem aprovação em massa, por decisão de produto.**
+- Simulador de webhook mostrando a requisição exata, a assinatura HMAC marcada
+  como responsabilidade do servidor, a idempotência por `external_id` e o
+  `202` explicado como aceite.
+- Tema claro e escuro, ambos desenhados como paletas independentes, com
+  `prefers-reduced-motion` respeitado e intervalo de polling configurável.
+- Verificações automatizadas novas: contraste WCAG AA sobre os tokens nos dois
+  temas (`npm run check:contrast`), auditoria axe-core em 10 telas × 2 temas
+  (`npm run check:a11y`) e orçamento de bundle de 180 KB gzip
+  (`npm run check:size`) — as três no job `frontend` do CI.
+- Script reproduzível de screenshots (`frontend/scripts/screenshots.mjs`) e
+  galeria em `docs/assets/`, gerada a partir do modo demonstração.
 
 ### Alterado
 
 - `frontend/dist/` deixou de ser versionado: passa a ser gerado pelo build
   (localmente via `npm run build`, no Compose via multi-stage build).
+- Camada de dados do frontend reorganizada atrás de uma fronteira única
+  (`src/data/source.ts`): exatamente um módulo pode falar com a rede, e duas
+  invariantes de arquitetura passaram a ser verificadas por teste — nenhum
+  componente importa `api/client`, e nada fora de `demo/` importa do demo
+  (que é carregado sob demanda e fica fora do bundle inicial).
+- `GET /interviews` passa por uma projeção leve e memoizada antes de chegar às
+  telas: linhas sem alteração preservam identidade e um poll sem novidade não
+  re-renderiza a lista. Acima de 200 itens a lista é virtualizada.
+- Um único loop de polling para toda a aplicação, em vez de um por tela, com
+  anúncio via `aria-live` das mudanças de status vindas do poll.
+- `frontend/README.md` atualizado: a seção "CI (sugestão)" descrevia um job
+  que já existia desde a introdução do frontend.
 
 - Diagramas da arquitetura dupla redesenhados: os estados da esteira
   (`TRANSCREVENDO`, `DIARIZANDO`) agora aparecem numa faixa própria,

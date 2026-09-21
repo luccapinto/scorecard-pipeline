@@ -108,3 +108,31 @@ export interface ActionResponse {
 export type Health =
   | { status: 'ok' }
   | { status: 'unhealthy'; problems: Record<string, string> };
+
+// GET /integrations (app/main.py). Booleans and provider/model names only —
+// the endpoint deliberately never returns a secret, not even masked, so there
+// is nothing here to redact on the client side.
+export interface IntegrationFlag {
+  configured: boolean;
+}
+
+export interface IntegrationToggle {
+  enabled: boolean;
+}
+
+export interface ProviderIntegration {
+  provider: string;
+  // null when TRANSCRIPTION_PROVIDER is set to a value the backend does not
+  // recognise; the backend then also reports configured: false.
+  model: string | null;
+  configured: boolean;
+}
+
+export interface IntegrationsStatus {
+  slack: IntegrationFlag;
+  webhook: IntegrationFlag;
+  transcription: ProviderIntegration;
+  scoring: ProviderIntegration;
+  webhook_hmac: IntegrationToggle;
+  api_key: IntegrationToggle;
+}

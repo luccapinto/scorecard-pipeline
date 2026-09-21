@@ -154,6 +154,56 @@ async def health():
     return {"status": "ok"}
 
 
+def _transcription_integration() -> dict[str, object]:
+    """
+    Maps TRANSCRIPTION_PROVIDER to the model the driver actually uses and to
+    the credential that makes that path usable. The `local` path is gated on
+    HF_TOKEN because its pyannote diarizer hard-fails without it, so a local
+    setup without the token is not really configured.
+    """
+    provider = settings.transcription_provider
+    if provider == "deepgram":
+        return {
+            "provider": provider,
+            "model": settings.deepgram_model,
+            "configured": bool(settings.deepgram_api_key),
+        }
+    if provider == "openai":
+        return {
+            "provider": provider,
+            "model": "whisper-1",
+            "configured": bool(settings.openai_api_key),
+        }
+    if provider == "local":
+        return {
+            "provider": provider,
+            "model": settings.whisper_model,
+            "configured": bool(settings.hf_token),
+        }
+    return {"provider": provider, "model": None, "configured": False}
+
+
+# Booleans and provider/model names only: every field below is derived from a
+# secret, never carries one. Webhook URLs, API keys and the HMAC secret are
+# credentials — echoing them back, even partially masked, would turn a
+# read-only status screen into a credential oracle for anyone holding a
+# read-scoped API key.
+@app.get("/integrations", dependencies=[Depends(require_api_key)])
+async def list_integrations():
+    return {
+        "slack": {"configured": bool(settings.slack_webhook_url)},
+        "webhook": {"configured": bool(settings.notification_webhook_url)},
+        "transcription": _transcription_integration(),
+        "scoring": {
+            "provider": "openrouter",
+            "model": settings.openrouter_model,
+            "configured": bool(settings.openrouter_api_key),
+        },
+        "webhook_hmac": {"enabled": bool(settings.webhook_hmac_secret)},
+        "api_key": {"enabled": bool(settings.api_key)},
+    }
+
+
 @app.post("/webhooks/recording", status_code=202, dependencies=[Depends(verify_webhook_signature)])
 async def recording_webhook(
     payload: RecordingWebhookPayload,

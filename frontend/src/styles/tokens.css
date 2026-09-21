@@ -1,0 +1,214 @@
+/* Design tokens — the single place where colour, space, type and motion are
+   defined. Components never hardcode a hex value; they reference a token.
+   Both themes are designed, not derived: dark is a separate palette, never a
+   filter over light (a filtered dark theme wrecks semantic hues and contrast).
+
+   Every text/background pair below is checked against WCAG 2.1 AA (>= 4.5:1
+   for body text, >= 3:1 for large text and UI boundaries) by
+   scripts/check-contrast.mjs, which runs in CI. */
+
+:root {
+  /* --- Spacing: 4px base, geometric-ish so gaps stay distinguishable ----- */
+  --sp-0: 0;
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+  --sp-8: 4rem;
+
+  /* --- Type ------------------------------------------------------------- */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', 'SFMono-Regular', Menlo,
+    Consolas, 'Liberation Mono', monospace;
+
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.375rem;
+  --fs-2xl: 1.75rem;
+  --fs-3xl: 2.25rem;
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-normal: 1.55;
+
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Tabular figures keep counters and scores from jittering as they update. */
+  --num-tabular: tabular-nums;
+
+  /* --- Shape ------------------------------------------------------------ */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+
+  /* --- Motion ----------------------------------------------------------- */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  /* --- Layout ----------------------------------------------------------- */
+  --nav-w: 244px;
+  --topbar-h: 56px;
+  --content-max: 1220px;
+
+  --z-sticky: 10;
+  --z-nav: 20;
+  --z-overlay: 40;
+  --z-toast: 60;
+}
+
+/* ===========================================================================
+   Light theme (default)
+   =========================================================================== */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f6;
+  --surface-3: #e4e9f0;
+  --surface-inset: #f7f9fc;
+
+  --border: #d9dfe8;
+  --border-strong: #898f9a;
+
+  --text: #10151f;
+  --text-muted: #55606f;
+  --text-faint: #687181;
+  --text-inverse: #ffffff;
+
+  --accent: #2b52c7;
+  --accent-hover: #1f40a5;
+  --accent-soft: #e8edfb;
+  --accent-border: #b9c8f2;
+  --accent-text: #1c3a95;
+
+  --focus-ring: #1f40a5;
+  --focus-ring-offset: #ffffff;
+
+  /* Semantic status hues. `-fg` is text on `-soft`; both are AA on the pair. */
+  --ok: #17734a;
+  --ok-soft: #e0f3e9;
+  --ok-border: #a7d8bf;
+
+  --warn: #8a5300;
+  --warn-soft: #fcefd9;
+  --warn-border: #e9c489;
+
+  --danger: #b0202b;
+  --danger-strong: #8d1922;
+  --danger-soft: #fce9ea;
+  --danger-border: #f0b3b7;
+
+  --info: #16557f;
+  --info-soft: #e2f0f9;
+  --info-border: #a8cfe6;
+
+  --neutral: #4d5766;
+  --neutral-soft: #e9ecf1;
+  --neutral-border: #ccd3dd;
+
+  --shadow-sm: 0 1px 2px rgba(16, 21, 31, 0.06), 0 1px 3px rgba(16, 21, 31, 0.04);
+  --shadow: 0 2px 4px rgba(16, 21, 31, 0.05), 0 6px 16px rgba(16, 21, 31, 0.07);
+  --shadow-lg: 0 8px 32px rgba(16, 21, 31, 0.14);
+
+  /* Speaker palette for transcripts — hue-distinct, all AA on --surface. */
+  --speaker-0: #1f4fb5;
+  --speaker-1: #0f6b5c;
+  --speaker-2: #8a3f9e;
+  --speaker-3: #9a5000;
+  --speaker-4: #1a5f7a;
+  --speaker-5: #a33246;
+
+  /* Chart ink — readable as fill against --surface. */
+  --chart-1: #2b52c7;
+  --chart-2: #17734a;
+  --chart-3: #8a5300;
+  --chart-4: #b0202b;
+  --chart-5: #6b4bb8;
+  --chart-grid: #dde3ec;
+  --chart-track: #e9edf3;
+}
+
+/* ===========================================================================
+   Dark theme — an independently chosen palette, not an inverted light one.
+   =========================================================================== */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0d1117;
+  --surface: #151b24;
+  --surface-2: #1c232f;
+  --surface-3: #242d3b;
+  --surface-inset: #111721;
+
+  --border: #2a3441;
+  --border-strong: #5c6776;
+
+  --text: #e8edf6;
+  --text-muted: #a3aec0;
+  --text-faint: #8b95a7;
+  --text-inverse: #0d1117;
+
+  --accent: #7ba2ff;
+  --accent-hover: #9cb9ff;
+  --accent-soft: #1b2740;
+  --accent-border: #33497a;
+  --accent-text: #a9c2ff;
+
+  --focus-ring: #9cb9ff;
+  --focus-ring-offset: #0d1117;
+
+  --ok: #56d39a;
+  --ok-soft: #102a20;
+  --ok-border: #245c44;
+
+  --warn: #e8b563;
+  --warn-soft: #2d2313;
+  --warn-border: #6b5122;
+
+  --danger: #ff8189;
+  --danger-strong: #ff9ba1;
+  --danger-soft: #331519;
+  --danger-border: #7a2f37;
+
+  --info: #6fc0ea;
+  --info-soft: #102530;
+  --info-border: #2c5468;
+
+  --neutral: #9aa5b7;
+  --neutral-soft: #1e2634;
+  --neutral-border: #36414f;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.45), 0 10px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+
+  --speaker-0: #8fb0ff;
+  --speaker-1: #5fd0b6;
+  --speaker-2: #d49bec;
+  --speaker-3: #eeb066;
+  --speaker-4: #74c4e8;
+  --speaker-5: #ff93a5;
+
+  --chart-1: #7ba2ff;
+  --chart-2: #56d39a;
+  --chart-3: #e8b563;
+  --chart-4: #ff8189;
+  --chart-5: #b79cf5;
+  --chart-grid: #273140;
+  --chart-track: #202936;
+}

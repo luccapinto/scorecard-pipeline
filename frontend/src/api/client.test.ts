@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ApiConfig } from './client';
+import type { ApiConfig } from '../config/settings';
 import {
   createInterview,
   decideInterview,

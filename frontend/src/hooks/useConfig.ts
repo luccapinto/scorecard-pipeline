@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import type { ApiConfig } from '../api/client';
+import type { ApiConfig } from '../config/settings';
 import { loadConfig, saveConfig } from '../config/settings';
 
 export interface UseConfig {

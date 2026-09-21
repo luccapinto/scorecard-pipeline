@@ -2,7 +2,16 @@
 // Nothing here is baked into the build: the defaults are a local dev host and
 // an empty key. Pure functions so they can be unit-tested without a DOM.
 
-import type { ApiConfig } from '../api/client';
+// The API config is owned here, not by the network client: configuration is
+// what the client consumes, so the dependency runs config -> client and never
+// the other way. `data/isolation.test.ts` enforces that nothing outside
+// `data/apiSource` imports `api/client` at all.
+export interface ApiConfig {
+  /** Base URL of the FastAPI backend, e.g. http://localhost:8000. */
+  baseUrl: string;
+  /** Sent as the X-API-Key header. Never logged, never put in a URL. */
+  apiKey: string;
+}
 
 const STORAGE_KEY = 'scorecard-pipeline.config';
 

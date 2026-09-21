@@ -1,49 +1,42 @@
 import { useEffect, useState } from 'react';
 
-// Minimal hash-based router. Chosen over react-router to avoid a dependency:
-// the app has three views and hash routing needs no server config (works under
-// nginx at any base path, and deep links survive refresh without try_files
-// rewrites). See frontend/README.md for the rationale.
+import type { Route } from '../app/routes';
+import { documentTitle, parseHash, routeToHash } from '../app/routes';
 
-export type Route =
-  | { name: 'list' }
-  | { name: 'new' }
-  | { name: 'detail'; id: string };
-
-export function parseHash(hash: string): Route {
-  const clean = hash.replace(/^#/, '').replace(/^\/+/, '');
-  if (clean === '' || clean === 'entrevistas') return { name: 'list' };
-  if (clean === 'nova') return { name: 'new' };
-  const match = clean.match(/^entrevistas\/([^/]+)$/);
-  if (match) return { name: 'detail', id: decodeURIComponent(match[1]) };
-  return { name: 'list' };
-}
-
-export function routeToHash(route: Route): string {
-  switch (route.name) {
-    case 'list':
-      return '#/entrevistas';
-    case 'new':
-      return '#/nova';
-    case 'detail':
-      return `#/entrevistas/${encodeURIComponent(route.id)}`;
-  }
+function currentHash(): string {
+  return typeof window === 'undefined' ? '' : window.location.hash;
 }
 
 export function navigate(route: Route): void {
   window.location.hash = routeToHash(route);
 }
 
+/**
+ * `href` for a route, so navigation uses real anchors. Buttons that change
+ * location are invisible to "open in new tab", copy-link and middle-click —
+ * on a dashboard people share links from, that matters.
+ */
+export function hrefFor(route: Route): string {
+  return routeToHash(route);
+}
+
 export function useHashRoute(): Route {
-  const [route, setRoute] = useState<Route>(() =>
-    parseHash(typeof window !== 'undefined' ? window.location.hash : ''),
-  );
+  const [route, setRoute] = useState<Route>(() => parseHash(currentHash()));
 
   useEffect(() => {
     const onChange = () => setRoute(parseHash(window.location.hash));
     window.addEventListener('hashchange', onChange);
+    // The hash may have changed between the initial render and this effect
+    // (e.g. a redirect fired during mount); resync rather than trust state.
+    onChange();
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
+
+  // A dashboard people keep in a background tab should say what it is in the
+  // tab strip, and screen readers announce the title on navigation.
+  useEffect(() => {
+    document.title = documentTitle(route);
+  }, [route]);
 
   return route;
 }
