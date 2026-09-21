@@ -443,7 +443,7 @@ mode, which is deterministic precisely so they can be reproduced on any machine.
 
 ### Quality gates
 
-Enforced by the `frontend` CI job: TypeScript `strict`, **242 tests**
+Enforced by the `frontend` CI job: TypeScript `strict`, **259 tests**
 (Vitest + Testing Library), a WCAG AA contrast check over the design tokens in
 both themes, an **axe-core audit across 10 screens × 2 themes**, and a
 **≤ 180 KB gzipped** initial-load budget (currently ~99 KB; the demo dataset is

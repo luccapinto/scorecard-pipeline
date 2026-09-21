@@ -13,6 +13,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../App';
+import type { RouteName } from '../app/routes';
+import { ROUTE_TITLES, routeToHash } from '../app/routes';
 import { DEMO_INTERVIEW_COUNT } from './dataset';
 
 /** Every way a browser can reach the network from application code. */
@@ -21,6 +23,7 @@ interface NetworkSpies {
   open: ReturnType<typeof vi.fn>;
   sendBeacon: ReturnType<typeof vi.fn>;
   calls: () => number;
+  restore: () => void;
 }
 
 function installNetworkSpies(): NetworkSpies {
@@ -35,6 +38,12 @@ function installNetworkSpies(): NetworkSpies {
   });
 
   vi.stubGlobal('fetch', fetchSpy);
+  // `vi.unstubAllGlobals` only reverses `stubGlobal`. These two are patched
+  // directly, so they must be restored by hand — otherwise a throwing
+  // XMLHttpRequest.open leaks into every later test file whenever the suite
+  // runs without per-file isolation.
+  const originalOpen = XMLHttpRequest.prototype.open;
+  const originalBeacon = Object.getOwnPropertyDescriptor(navigator, 'sendBeacon');
   XMLHttpRequest.prototype.open = openSpy as unknown as typeof XMLHttpRequest.prototype.open;
   Object.defineProperty(navigator, 'sendBeacon', { value: beaconSpy, configurable: true });
 
@@ -42,7 +51,16 @@ function installNetworkSpies(): NetworkSpies {
     fetch: fetchSpy,
     open: openSpy,
     sendBeacon: beaconSpy,
-    calls: () => fetchSpy.mock.calls.length + openSpy.mock.calls.length + beaconSpy.mock.calls.length,
+    calls: () =>
+      fetchSpy.mock.calls.length + openSpy.mock.calls.length + beaconSpy.mock.calls.length,
+    restore: () => {
+      XMLHttpRequest.prototype.open = originalOpen;
+      if (originalBeacon === undefined) {
+        Reflect.deleteProperty(navigator, 'sendBeacon');
+      } else {
+        Object.defineProperty(navigator, 'sendBeacon', originalBeacon);
+      }
+    },
   };
 }
 
@@ -60,10 +78,39 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  network.restore();
   vi.unstubAllGlobals();
 });
 
+// Derived from the router, not hand-listed: a new route joins this test
+// automatically instead of quietly escaping the guarantee.
+const EVERY_ROUTE = (Object.keys(ROUTE_TITLES) as RouteName[]).map((name) => ({
+  name,
+  hash: routeToHash(
+    name === 'interview'
+      ? { mode: 'demo', name, id: 'demo-ana-sintetica', clockAnchor: ANCHOR }
+      : { mode: 'demo', name, clockAnchor: ANCHOR },
+  ),
+}));
+
 describe('demo mode isolation', () => {
+  it.each(EVERY_ROUTE)('renders $name with zero network calls', async ({ hash }) => {
+    window.location.hash = hash;
+    render(<App />);
+
+    // Every screen has an <h1>; waiting for it proves the route actually
+    // rendered rather than erroring into an empty shell.
+    await screen.findByRole('heading', { level: 1 });
+    expect(network.calls()).toBe(0);
+  });
+
+  it('covers every route the router knows about', () => {
+    // Guards the guard: if someone adds a RouteName and this list is derived
+    // correctly, the count moves with it.
+    expect(EVERY_ROUTE.length).toBe(Object.keys(ROUTE_TITLES).length);
+    expect(EVERY_ROUTE.map((route) => route.name)).toContain('approvals');
+  });
+
   it('renders the whole dashboard without touching the network', async () => {
     goTo('esteira');
     render(<App />);
@@ -164,6 +211,28 @@ describe('demo mode isolation', () => {
 
     await screen.findByRole('heading', { name: 'Integrações e mensagens', level: 1 });
     expect(await screen.findByText(/Avaliação de Entrevista:/)).toBeInTheDocument();
+    expect(network.calls()).toBe(0);
+  });
+
+  it('renders the observability screen offline', async () => {
+    // The screen most likely to grow a network call: it already reads the
+    // request telemetry module.
+    goTo('saude');
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Saúde e observabilidade', level: 1 });
+    // And it must not display a request captured earlier in API mode.
+    expect(screen.getByText(/Nenhuma requisição existe para mostrar/i)).toBeInTheDocument();
+    expect(network.calls()).toBe(0);
+  });
+
+  it('renders the settings screen offline', async () => {
+    // It edits the API config, so it is the other screen where a stray call
+    // would be easy to introduce.
+    goTo('configuracao');
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Configuração', level: 1 });
     expect(network.calls()).toBe(0);
   });
 

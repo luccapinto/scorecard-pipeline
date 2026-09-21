@@ -26,7 +26,7 @@ import type {
   DeliveryAttempt,
   FunnelBoard,
 } from '../data/source';
-import { buildFunnelCards, DEMO_FUNNEL_STAGES } from './dataset';
+import { buildFunnelCards, DEMO_FUNNEL_STAGES, runtimeInterviewId } from './dataset';
 import { DEMO_JOB_PROFILES } from './reference.generated';
 import type { DemoAction, DemoState } from './state';
 import { demoNow } from './state';
@@ -79,6 +79,13 @@ export function createDemoSource(
   return {
     mode: 'demo',
     capabilities: DEMO_CAPABILITIES,
+    // Anchor + generation identifies the scenario instance. It survives every
+    // demo mutation — so advancing or deciding never looks like "a different
+    // dataset" and the shared list does not flash back to a skeleton — but it
+    // DOES change on reset, which replaces the scenario and must clear both
+    // the rows on screen and the status-change history.
+    datasetKey: `demo:${getState().anchor}:${getState().generation}`,
+    revision: getState().revision,
 
     now(): number {
       return demoNow(getState());
@@ -129,8 +136,10 @@ export function createDemoSource(
           deduplicated: true,
         });
       }
+      // Same helper the reducer uses, so the two cannot drift into reporting
+      // an id that was never created.
       return Promise.resolve({
-        interview_id: `demo-runtime-${before.runtimeSequence + 1}`,
+        interview_id: runtimeInterviewId(before.runtimeSequence + 1),
         status: 'recebida',
       });
     },

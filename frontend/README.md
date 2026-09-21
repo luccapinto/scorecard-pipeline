@@ -113,17 +113,32 @@ src/
 
 ### Invariantes verificadas por teste
 
-Duas regras seguram o desenho, e as duas são verificadas em
+Três regras seguram o desenho, e as três são verificadas em
 `src/data/isolation.test.ts` — erodiriam em silêncio se fossem só documentação:
 
-1. **Só `data/apiSource.ts` importa `api/client`.** Se um componente acessar a
-   rede direto, a garantia do demo deixa de valer.
-2. **Nada fora de `demo/` importa de `demo/`**, exceto um `import()` dinâmico
+1. **Só `data/apiSource.ts` importa `api/client`.**
+2. **Nenhum outro módulo chama uma primitiva de rede.** A regra acima olha o
+   grafo de imports, e sozinha não bastaria: um componente que escrevesse
+   `fetch(url)` não importa nada e passaria por ela. Então o teste também
+   varre o código-fonte (sem comentários) atrás de `fetch(`,
+   `new XMLHttpRequest`, `new EventSource`, `new WebSocket`, `sendBeacon`,
+   `serviceWorker` e `import()` de URL remota, permitindo-os apenas em
+   `api/client.ts`.
+3. **Nada fora de `demo/` importa de `demo/`**, exceto um `import()` dinâmico
    em `App.tsx`. É o que mantém o demo fora do bundle inicial.
 
 E `src/demo/isolation.test.tsx` dirige a aplicação real com `fetch`,
 `XMLHttpRequest.open` e `navigator.sendBeacon` substituídos por espiões que
-lançam, exigindo **zero** chamadas — inclusive no fluxo de decisão.
+lançam. A lista de rotas exercitadas é **derivada de `ROUTE_TITLES`**, não
+escrita à mão: toda rota que o roteador conhece entra no teste sozinha, e uma
+rota nova não escapa da garantia em silêncio. Além disso, os fluxos de escrita
+— decisão, criação com deduplicação e reprocessamento — são exercitados
+individualmente, todos exigindo **zero** chamadas.
+
+O limite honesto: isso cobre o que o código-fonte faz. Não cobre um recurso
+remoto referenciado por markup (um `<img src>` absoluto, por exemplo), que o
+jsdom não busca. Hoje não existe nenhum, e a regra 2 é o que impede que
+apareça por código.
 
 ## Desempenho
 
@@ -182,7 +197,7 @@ pessoas.
 
 ## Testes
 
-Vitest + Testing Library (jsdom). **242 testes.**
+Vitest + Testing Library (jsdom). **259 testes.**
 
 ```bash
 npm test -- --run

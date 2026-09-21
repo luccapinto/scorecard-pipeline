@@ -86,12 +86,18 @@ export function HealthView() {
     check();
   }, [check]);
 
-  const [sample, setSample] = useState<RequestSample | null>(() => lastRequest());
+  const [sample, setSample] = useState<RequestSample | null>(null);
+
+  // Telemetry lives in module scope and mode switching is a hash change with
+  // no reload, so a sample taken in API mode would otherwise survive into the
+  // demo screen and display a real backend request under the synthetic
+  // banner. That is precisely the mode mixing ADR 0005 forbids.
+  const showsRequests = source.mode === 'api';
   useEffect(() => {
-    // Re-read on mount: a request may have settled before this screen existed.
+    if (!showsRequests) return;
     setSample(lastRequest());
     return subscribeRequests(setSample);
-  }, []);
+  }, [showsRequests]);
 
   const intervalSeconds = Math.round(polling.intervalMs / 100) / 10;
   const loadedIso = lastLoadedAt === null ? null : new Date(lastLoadedAt).toISOString();
@@ -162,7 +168,13 @@ export function HealthView() {
           Última requisição
         </h2>
         <div className="card__body">
-          {sample === null ? (
+          {!showsRequests ? (
+            <p className="health-note">
+              <strong>Nenhuma requisição existe para mostrar.</strong> O modo demonstração não faz
+              E/S de rede, então este cartão fica deliberadamente vazio aqui — inclusive se você
+              usou o modo API nesta mesma aba.
+            </p>
+          ) : sample === null ? (
             <p className="health-note">Nenhuma requisição registrada nesta sessão.</p>
           ) : (
             <dl className="health-grid">

@@ -24,6 +24,7 @@ import type {
   TranscriptSegment,
 } from '../api/types';
 import { quoteIsInTranscript } from '../lib/evidence';
+import { parseTimestamp } from '../lib/format';
 import type { DeliveryAttempt, FunnelCard, FunnelStage } from '../data/source';
 import { DEMO_JOB_PROFILES } from './reference.generated';
 import { DEMO_DIALOGUES, consolidate } from './transcripts';
@@ -423,7 +424,7 @@ function buildInterview(spec: InterviewSpec, anchor: number): Interview {
 /** Newest first, matching `GET /interviews`. */
 export function buildDemoInterviews(anchor: number): Interview[] {
   return SPECS.map((spec) => buildInterview(spec, anchor)).sort(
-    (a, b) => Date.parse(`${b.created_at}Z`) - Date.parse(`${a.created_at}Z`),
+    (a, b) => parseTimestamp(b.created_at).getTime() - parseTimestamp(a.created_at).getTime(),
   );
 }
 
@@ -458,6 +459,16 @@ export function makeRuntimeSpec(
     recommendation: 'Próxima Etapa',
     ...(externalId === null ? {} : { externalId }),
   };
+}
+
+
+/**
+ * The id the reducer will assign to the next runtime-created interview.
+ * Exported so the reducer and the data source cannot drift: both derive the
+ * id from this one function instead of rebuilding the same string twice.
+ */
+export function runtimeInterviewId(sequence: number): string {
+  return `demo-${makeRuntimeSpec(sequence, 'python_pleno', null).slug}`;
 }
 
 export function isoFromEpoch(epochMs: number): string {
@@ -508,7 +519,9 @@ export function buildFunnelCards(
       averageScore:
         scores.length > 0 ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null,
       evidenceAlert: evaluations.some((evaluation) => evaluation.evidence_verified === false),
-      enteredStageAt: Date.parse(`${interview.updated_at}Z`),
+      // parseTimestamp, not a hand-rolled `+ 'Z'`: that trick breaks the day
+      // a payload already carries a designator, and this rule has one home.
+      enteredStageAt: parseTimestamp(interview.updated_at).getTime(),
     };
   });
 }
@@ -525,7 +538,7 @@ export function buildDeliveryLog(
 
   for (const interview of interviews) {
     if (interview.scorecard === null) continue;
-    const settledAt = Date.parse(`${interview.updated_at}Z`);
+    const settledAt = parseTimestamp(interview.updated_at).getTime();
     const attempts: DeliveryAttempt[] = [
       {
         id: `${interview.id}-slack-1`,

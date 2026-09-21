@@ -43,10 +43,18 @@ const API_CAPABILITIES: Capabilities = {
   steppableClock: false,
 };
 
-export function createApiSource(config: ApiConfig): DataSource {
+/**
+ * `configEpoch` increments whenever the user saves a new API config. It is
+ * what tells consumers "this is a different dataset now" WITHOUT putting the
+ * base URL or the API key into a string that travels around the app.
+ */
+export function createApiSource(config: ApiConfig, configEpoch: number): DataSource {
   return {
     mode: 'api',
     capabilities: API_CAPABILITIES,
+    datasetKey: `api:${configEpoch}`,
+    // The API source never mutates under us on its own; polling refreshes it.
+    revision: 0,
 
     now(): number {
       return Date.now();

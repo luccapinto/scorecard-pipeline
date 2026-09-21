@@ -32,7 +32,7 @@ const FunnelView = lazy(() =>
 );
 
 export function App() {
-  const { config, updateConfig } = useConfig();
+  const { config, updateConfig, epoch } = useConfig();
   const { preferences, setPreferences } = usePreferences();
   const route = useHashRoute();
 
@@ -47,7 +47,7 @@ export function App() {
   const loadAnchor = useRef(Date.now());
   const anchor = route.clockAnchor ?? loadAnchor.current;
 
-  const apiSource = useMemo(() => createApiSource(config), [config]);
+  const apiSource = useMemo(() => createApiSource(config, epoch), [config, epoch]);
 
   const shell = (
     <Shell

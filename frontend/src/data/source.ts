@@ -114,6 +114,24 @@ export interface DataSource {
   readonly mode: AppMode;
   readonly capabilities: Capabilities;
 
+  /**
+   * Identity of the DATASET being viewed. When this changes, what is on
+   * screen belongs to a different backend or a different demo scenario, so
+   * cached rows must be thrown away before new ones arrive.
+   *
+   * It must NOT change merely because the same dataset mutated — otherwise
+   * every demo click tears the shared list back down to a skeleton.
+   * Deliberately opaque and never rendered or logged.
+   */
+  readonly datasetKey: string;
+
+  /**
+   * Bumped when the SAME dataset changed underneath us (a demo action). Tells
+   * consumers to re-read without discarding what they already show.
+   * Constant for the API source, whose refreshes are driven by polling.
+   */
+  readonly revision: number;
+
   /** Epoch ms. The demo source returns its anchored clock, not wall time. */
   now(): number;
 

@@ -66,9 +66,10 @@ export function InterviewsProvider({ activeIntervalMs, children }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   const [hidden, setHidden] = useState(false);
-
-  // One projector per source: cached rows keep their identity across polls.
-  const project = useMemo(() => createProjector(), [source.mode]);
+  // One projector per DATASET, not per mode: changing the base URL or the API
+  // key yields a different backend, and its rows must not inherit a cache
+  // populated from the previous one.
+  const project = useMemo(() => createProjector(), [source.datasetKey]);
   const previousStatuses = useRef<Record<string, string>>({});
 
   const load = useCallback(() => {
@@ -84,13 +85,39 @@ export function InterviewsProvider({ activeIntervalMs, children }: Props) {
       .finally(() => setRefreshing(false));
   }, [source]);
 
-  // Reload from scratch when the source changes (mode switch, config change).
+  // Keep the latest `load` reachable from effects that must NOT re-run when
+  // the source object is merely rebuilt around the same dataset.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  // A revision seen is a revision already loaded. Kept in sync by BOTH
+  // effects so a dataset switch cannot leave a stale watermark behind.
+  const lastRevision = useRef(source.revision);
+
+  // Switching dataset (mode change, new API target, demo reset) invalidates
+  // what is on screen: clear it so rows from another scenario cannot linger,
+  // and drop the announcement history so a reset is not narrated as a burst
+  // of status changes.
   useEffect(() => {
     setRaw(null);
     setError(null);
     previousStatuses.current = {};
-    load();
-  }, [load]);
+    lastRevision.current = source.revision;
+    loadRef.current();
+    // Intentionally keyed on datasetKey ALONE. Adding `revision` here would
+    // re-run this on every demo action and bring back the very flash this
+    // split exists to remove; the watermark above is set from the current
+    // value at the moment the dataset changed.
+  }, [source.datasetKey]);
+
+  // The SAME dataset mutated locally — a demo action. Re-read, but never
+  // clear: blanking the list here made every demo click flash the whole
+  // screen back to a skeleton and wiped the status-change announcements.
+  useEffect(() => {
+    if (source.revision === lastRevision.current) return;
+    lastRevision.current = source.revision;
+    loadRef.current();
+  }, [source.revision]);
 
   const summaries = useMemo(() => (raw === null ? null : project(raw)), [raw, project]);
 

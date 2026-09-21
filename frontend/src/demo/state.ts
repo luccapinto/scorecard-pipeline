@@ -11,7 +11,7 @@
 // too. A demo that only shows the happy path teaches the wrong thing about a
 // system whose interesting behaviour is at the edges.
 
-import { BadRequestError } from '../api/errors';
+import { BadRequestError, NotFoundError } from '../api/errors';
 import type {
   CreateInterviewPayload,
   DecisionAction,
@@ -27,6 +27,7 @@ import {
   initialFunnelStages,
   isoFromEpoch,
   makeRuntimeSpec,
+  runtimeInterviewId,
   SPEC_BY_ID,
   type InterviewSpec,
 } from './dataset';
@@ -56,6 +57,19 @@ export interface DemoState {
   lastIngestion: IngestionRecord | null;
   /** Incremented on every advance, so the UI can label "passo N". */
   step: number;
+  /**
+   * Incremented on EVERY action. Consumers use it to re-read after a local
+   * mutation without discarding what they already show — unlike the dataset
+   * identity, which only changes when the scenario itself is replaced.
+   */
+  revision: number;
+  /**
+   * Incremented only by `reset`. Reset does not mutate the scenario, it
+   * REPLACES it, so consumers must treat the result as a different dataset —
+   * clearing what they show and their change-announcement history — rather
+   * than as one more local edit.
+   */
+  generation: number;
 }
 
 export type DemoAction =
@@ -82,6 +96,8 @@ export function initialDemoState(anchor: number): DemoState {
     runtimeSequence: 0,
     lastIngestion: null,
     step: 0,
+    revision: 0,
+    generation: 0,
   };
 }
 
@@ -130,7 +146,7 @@ function advance(state: DemoState): DemoState {
 function decide(state: DemoState, id: string, action: DecisionAction): DemoState {
   const interview = state.interviews.find((item) => item.id === id);
   if (interview === undefined) {
-    throw new BadRequestError(`Interview ${id} not found`, 404);
+    throw new NotFoundError(`Interview ${id} not found`);
   }
   if (interview.status !== 'aguardando_aprovacao') {
     // Verbatim from app/main.py::_apply_decision, so the UI's handling of the
@@ -168,7 +184,7 @@ function decide(state: DemoState, id: string, action: DecisionAction): DemoState
 function reprocess(state: DemoState, id: string): DemoState {
   const interview = state.interviews.find((item) => item.id === id);
   if (interview === undefined) {
-    throw new BadRequestError(`Interview ${id} not found`, 404);
+    throw new NotFoundError(`Interview ${id} not found`);
   }
   if (interview.status !== 'falhou') {
     throw new BadRequestError(
@@ -225,7 +241,9 @@ function create(state: DemoState, payload: CreateInterviewPayload): DemoState {
 
   const sequence = state.runtimeSequence + 1;
   const spec = makeRuntimeSpec(sequence, payload.job_id, externalId);
-  const id = `demo-${spec.slug}`;
+  // Shared with demoSource via the same helper, so the reported id and the
+  // created id can never disagree.
+  const id = runtimeInterviewId(sequence);
   const stamp = isoFromEpoch(now);
 
   const interview: Interview = {
@@ -267,6 +285,18 @@ function create(state: DemoState, payload: CreateInterviewPayload): DemoState {
 export const REDACTED_SIGNATURE = 'sha256=«assinatura calculada pelo servidor de gravação»';
 
 export function demoReducer(state: DemoState, action: DemoAction): DemoState {
+  // Reset rebuilds from scratch, so it restarts the revision too; every other
+  // action bumps it here rather than in each handler, which is the only way
+  // to be sure a new case cannot forget to.
+  if (action.type === 'reset') {
+    return { ...initialDemoState(state.anchor), generation: state.generation + 1 };
+  }
+
+  const next = applyDemoAction(state, action);
+  return next === state ? state : { ...next, revision: state.revision + 1 };
+}
+
+function applyDemoAction(state: DemoState, action: Exclude<DemoAction, { type: 'reset' }>) {
   switch (action.type) {
     case 'advance':
       return advance(state);
@@ -281,7 +311,5 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
         ...state,
         funnelStageById: { ...state.funnelStageById, [action.id]: action.stageId },
       };
-    case 'reset':
-      return initialDemoState(state.anchor);
   }
 }

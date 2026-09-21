@@ -32,6 +32,8 @@ export function makeStubSource(overrides: Partial<DataSource> = {}): DataSource 
   return {
     mode: 'api',
     capabilities: API_CAPABILITIES,
+    datasetKey: 'test',
+    revision: 0,
     now: () => TEST_NOW,
     listInterviews: vi.fn().mockResolvedValue(empty),
     getInterview: vi.fn().mockRejectedValue(new Error('not stubbed')),

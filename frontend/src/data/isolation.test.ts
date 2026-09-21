@@ -44,6 +44,11 @@ function importsOf(code: string): string[] {
   return specifiers;
 }
 
+/** Removes block and line comments so prose about `fetch` is not a finding. */
+function stripComments(code: string): string {
+  return code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 const files = sourceFiles(SRC).map((path) => ({
   path: relative(SRC, path).replaceAll('\\', '/'),
   imports: importsOf(readFileSync(path, 'utf8')),
@@ -59,8 +64,45 @@ describe('architecture', () => {
   it('routes all network access through data/apiSource', () => {
     const offenders = files
       .filter((file) => file.path !== 'data/apiSource.ts')
-      .filter((file) => file.imports.some((spec) => /(^|\/)api\/client$/.test(spec)))
+      // Match the module regardless of how it is spelled: with or without an
+      // extension, and through a barrel that re-exports it.
+      .filter((file) => file.imports.some((spec) => /(^|\/)api\/client(\.tsx?)?$/.test(spec)))
       .map((file) => file.path);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('never reaches the network without going through the client', () => {
+    // The import-graph rule above is necessary but not sufficient: a
+    // component that writes `fetch(url)` imports nothing and would sail
+    // through it, quietly voiding the demo's zero-network guarantee. This
+    // checks the source text for every primitive that can open a connection.
+    const PRIMITIVES = [
+      /\bfetch\s*\(/,
+      /\bnew\s+XMLHttpRequest\b/,
+      /\bnew\s+EventSource\b/,
+      /\bnew\s+WebSocket\b/,
+      /\bnavigator\s*\.\s*sendBeacon\b/,
+      /\bnavigator\s*\.\s*serviceWorker\b/,
+      /\bimport\s*\(\s*['"]https?:/,
+    ];
+
+    // `api/client.ts` is the one place allowed to call fetch. `api/telemetry`
+    // only measures it. Nothing else may.
+    const ALLOWED: Record<string, true> = { 'api/client.ts': true };
+
+    const offenders: string[] = [];
+    for (const file of files) {
+      if (ALLOWED[file.path]) continue;
+      // Comments discuss these primitives by name all over the codebase
+      // (explaining why fetch rejects on CORS, for instance). Scanning raw
+      // text would flag prose, and a guard that cries wolf gets an allowlist
+      // bolted on until it means nothing.
+      const code = stripComments(readFileSync(join(SRC, file.path), 'utf8'));
+      for (const pattern of PRIMITIVES) {
+        if (pattern.test(code)) offenders.push(`${file.path} :: ${pattern.source}`);
+      }
+    }
 
     expect(offenders).toEqual([]);
   });
