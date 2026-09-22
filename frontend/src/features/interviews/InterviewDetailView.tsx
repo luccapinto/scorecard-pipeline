@@ -1,183 +1,301 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { ApiConfig } from '../../api/client';
-import { decideInterview, getInterview, reprocessInterview } from '../../api/client';
 import { errorMessage } from '../../api/errors';
 import type { DecisionAction, Interview } from '../../api/types';
 import { ErrorState } from '../../components/ErrorState';
-import { Loading } from '../../components/Loading';
 import { StatusBadge } from '../../components/StatusBadge';
+import { Gap } from '../../components/ui/Gap';
+import { Icon } from '../../components/ui/Icon';
+import { SkeletonRows } from '../../components/ui/Skeleton';
+import { useInterviews } from '../../data/InterviewsProvider';
+import { useDataSource } from '../../data/source';
+import { useAnnouncer } from '../../components/ui/Announcer';
 import { usePolling } from '../../hooks/usePolling';
-import { formatDateTime } from '../../lib/format';
+import { formatDateTime, formatDuration, formatRelative, parseTimestamp } from '../../lib/format';
 import { statusMeta } from '../../lib/status';
+import { buildTurns } from '../../lib/transcript';
 import { DecisionActions } from './DecisionActions';
+import { DeliveryHistory } from './DeliveryHistory';
+import { FailurePanel } from './FailurePanel';
 import { Scorecard } from './Scorecard';
 import { Transcript } from './Transcript';
 
 interface Props {
-  config: ApiConfig;
   id: string;
-  onBack: () => void;
-  onOpenConfig: () => void;
 }
 
-export function InterviewDetailView({ config, id, onBack, onOpenConfig }: Props) {
+export function InterviewDetailView({ id }: Props) {
+  const source = useDataSource();
+  const { reload: reloadList } = useInterviews();
+  const { announce } = useAnnouncer();
+
   const [interview, setInterview] = useState<Interview | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [reprocessError, setReprocessError] = useState<string | null>(null);
-  const [reprocessing, setReprocessing] = useState(false);
+  const [highlightQuote, setHighlightQuote] = useState<string | null>(null);
+  const [rollbackNotice, setRollbackNotice] = useState<string | null>(null);
+  const transcriptRef = useRef<HTMLElement>(null);
 
   const load = useCallback(() => {
-    getInterview(config, id)
+    source
+      .getInterview(id)
       .then((data) => {
         setInterview(data);
         setError(null);
       })
-      .catch((err) => setError(err));
-  }, [config, id]);
+      .catch((cause) => setError(cause));
+  }, [source, id]);
 
   useEffect(() => {
     setInterview(null);
     setError(null);
+    setHighlightQuote(null);
     load();
   }, [load]);
 
-  // Poll while the interview is still being processed; stop once it settles.
   const isProcessing =
     interview !== null && statusMeta(interview.status).category === 'processing';
-  usePolling(load, { intervalMs: 5000, enabled: isProcessing });
+  usePolling(load, { intervalMs: 5000, enabled: source.mode === 'api' && isProcessing });
+
+  // The text every quote is checked against — the same consolidation the
+  // backend's EvidenceValidator performs before comparing.
+  const transcriptText = useMemo(() => {
+    if (interview === null) return null;
+    const turns = buildTurns(interview.transcription_raw, interview.diarization_raw);
+    return turns.length > 0 ? turns.map((turn) => turn.text).join(' ') : null;
+  }, [interview]);
+
+  const flaggedCount = useMemo(
+    () =>
+      (interview?.scorecard?.evaluations ?? []).filter(
+        (item) => item.evidence_verified === false,
+      ).length,
+    [interview],
+  );
+
+  const onLocateQuote = useCallback((quote: string) => {
+    setHighlightQuote(quote);
+    transcriptRef.current?.scrollIntoView({ block: 'start' });
+  }, []);
 
   const handleDecide = useCallback(
     async (action: DecisionAction): Promise<void> => {
-      await decideInterview(config, id, action);
-      // Refresh so the new terminal status and cleared token are reflected.
-      load();
+      const previous = interview;
+      if (previous === null) return;
+
+      // Optimistic: the decision is the one interaction where latency is most
+      // visible, and the outcome is almost always the one we predict.
+      setRollbackNotice(null);
+      setInterview({
+        ...previous,
+        status: action === 'approve' ? 'aprovada' : 'rejeitada',
+      });
+
+      try {
+        await source.decide(id, action);
+        announce(
+          action === 'approve' ? 'Candidatura aprovada.' : 'Candidatura rejeitada.',
+          'assertive',
+        );
+        load();
+        reloadList();
+      } catch (cause) {
+        // Rollback has to be visible, not silent: the user saw the status flip
+        // and must be told it did not stick, and why.
+        setInterview(previous);
+        setRollbackNotice(
+          `A decisão não foi registrada e o status foi revertido. ${errorMessage(cause)}`,
+        );
+        load();
+        throw cause;
+      }
     },
-    [config, id, load],
+    [interview, source, id, load, reloadList, announce],
   );
 
-  const handleReprocess = useCallback(() => {
-    setReprocessing(true);
-    setReprocessError(null);
-    reprocessInterview(config, id)
-      .then(() => load())
-      .catch((err) => setReprocessError(errorMessage(err)))
-      .finally(() => setReprocessing(false));
-  }, [config, id, load]);
+  const handleReprocess = useCallback(async () => {
+    await source.reprocess(id);
+    load();
+    reloadList();
+  }, [source, id, load, reloadList]);
 
-  if (error && interview === null) {
-    return (
-      <div className="detail-view">
-        <BackButton onBack={onBack} />
-        <ErrorState error={error} onRetry={load} onOpenConfig={onOpenConfig} />
-      </div>
-    );
+  if (error !== null && interview === null) {
+    return <ErrorState error={error} onRetry={load} />;
   }
 
   if (interview === null) {
-    return (
-      <div className="detail-view">
-        <BackButton onBack={onBack} />
-        <Loading label="Carregando entrevista…" />
-      </div>
-    );
+    return <SkeletonRows rows={6} label="Carregando entrevista…" />;
   }
 
+  const meta = statusMeta(interview.status);
+  const audit = source.capabilities.auditTrail ? (source.auditTrail?.(id) ?? []) : null;
+
   return (
-    <div className="detail-view">
-      <BackButton onBack={onBack} />
+    <div className="detail">
+      <div className="view-head">
+        <div className="view-head__text">
+          <div className="view-head__title">
+            <h1>{interview.scorecard?.candidate_name ?? 'Entrevista'}</h1>
+            <StatusBadge status={interview.status} />
+          </div>
+          <p className="view-head__sub">{meta.description}</p>
+        </div>
+      </div>
 
-      <header className="detail-view__header">
-        <div>
-          <h1 className="detail-view__title">Entrevista</h1>
-          <p className="detail-view__id">{interview.id}</p>
-        </div>
-        <StatusBadge status={interview.status} />
-      </header>
+      {rollbackNotice !== null && (
+        <p className="detail__rollback" role="alert">
+          <Icon name="alert" />
+          <span>{rollbackNotice}</span>
+        </p>
+      )}
 
-      <dl className="detail-view__meta">
-        <div>
-          <dt>Vaga</dt>
-          <dd>{interview.job_id ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>ID externo</dt>
-          <dd>{interview.external_id ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>Gravação</dt>
-          <dd className="detail-view__mono">{interview.recording_url}</dd>
-        </div>
-        <div>
-          <dt>Criada em</dt>
-          <dd>{formatDateTime(interview.created_at)}</dd>
-        </div>
-        <div>
-          <dt>Atualizada em</dt>
-          <dd>{formatDateTime(interview.updated_at)}</dd>
-        </div>
-        <div>
-          <dt>Tentativas</dt>
-          <dd>{interview.retry_count}</dd>
-        </div>
-      </dl>
+      <section className="card" aria-label="Dados da entrevista">
+        <dl className="detail__meta">
+          <Field label="ID" value={<code className="mono">{interview.id}</code>} />
+          <Field label="Vaga" value={interview.job_id ?? '—'} />
+          <Field
+            label="ID externo"
+            value={
+              interview.external_id ? (
+                <code className="mono">{interview.external_id}</code>
+              ) : (
+                'não informado'
+              )
+            }
+          />
+          <Field
+            label="Gravação"
+            value={<code className="mono detail__path">{interview.recording_url}</code>}
+          />
+          <Field
+            label="Criada em"
+            value={`${formatDateTime(interview.created_at)} (${formatRelative(
+              interview.created_at,
+              source.now(),
+            )})`}
+          />
+          <Field
+            label="Última atualização"
+            value={`${formatDateTime(interview.updated_at)} (há ${formatDuration(
+              source.now() - parseTimestamp(interview.updated_at).getTime(),
+            )})`}
+          />
+          <Field label="Tentativas de reprocessamento" value={String(interview.retry_count)} />
+        </dl>
+      </section>
 
       {interview.status === 'falhou' && (
-        <section className="failure" aria-label="Falha no processamento">
-          <h2 className="failure__title">O processamento falhou</h2>
-          {interview.error_log ? (
-            <pre className="failure__log">{interview.error_log}</pre>
+        <FailurePanel
+          errorLog={interview.error_log}
+          retryCount={interview.retry_count}
+          onReprocess={handleReprocess}
+        />
+      )}
+
+      <section className="card" aria-labelledby="decisao-title">
+        <h2 id="decisao-title" className="card__title">
+          Decisão
+        </h2>
+        <div className="card__body">
+          <DecisionActions
+            status={interview.status}
+            candidateName={interview.scorecard?.candidate_name ?? null}
+            flaggedCount={flaggedCount}
+            onDecide={handleDecide}
+          />
+          {audit === null ? (
+            <Gap gap="decisionAuthor" title="Autoria da decisão" variant="inline" />
           ) : (
-            <p>Sem detalhes de erro registrados.</p>
+            <AuditTrail entries={audit} now={source.now()} />
           )}
-          {reprocessError && (
-            <p className="failure__error" role="alert">
-              {reprocessError}
-            </p>
-          )}
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={handleReprocess}
-            disabled={reprocessing}
-          >
-            {reprocessing ? 'Reenfileirando…' : 'Reprocessar'}
-          </button>
+        </div>
+      </section>
+
+      {interview.scorecard !== null ? (
+        <Scorecard
+          scorecard={interview.scorecard}
+          jobId={interview.job_id}
+          transcript={transcriptText}
+          onLocateQuote={onLocateQuote}
+        />
+      ) : (
+        <section className="card">
+          <p className="detail__pending">
+            {statusMeta(interview.status).category === 'processing'
+              ? 'Scorecard ainda não gerado — o processamento está em andamento.'
+              : 'Nenhum scorecard disponível para esta entrevista.'}
+          </p>
         </section>
       )}
 
-      <section className="detail-view__decision" aria-label="Decisão">
-        <h2 className="detail-view__section-title">Decisão</h2>
-        <DecisionActions status={interview.status} onDecide={handleDecide} />
+      <section className="card" aria-labelledby="transcricao-title" ref={transcriptRef}>
+        <h2 id="transcricao-title" className="card__title">
+          Transcrição
+        </h2>
+        <div className="card__body">
+          <Transcript
+            transcription={interview.transcription_raw}
+            diarization={interview.diarization_raw}
+            highlightQuote={highlightQuote}
+            onClearHighlight={() => setHighlightQuote(null)}
+          />
+        </div>
       </section>
 
-      <section className="detail-view__scorecard">
-        {interview.scorecard ? (
-          <Scorecard scorecard={interview.scorecard} />
-        ) : (
-          <p className="detail-view__pending">
-            {statusMeta(interview.status).category === 'processing'
-              ? 'Scorecard ainda não gerado — processamento em andamento.'
-              : 'Nenhum scorecard disponível para esta entrevista.'}
-          </p>
-        )}
-      </section>
-
-      <section className="detail-view__transcript">
-        <h2 className="detail-view__section-title">Transcrição</h2>
-        <Transcript
-          transcription={interview.transcription_raw}
-          diarization={interview.diarization_raw}
-        />
-      </section>
+      <DeliveryHistory interviewId={id} hasScorecard={interview.scorecard !== null} />
     </div>
   );
 }
 
-function BackButton({ onBack }: { onBack: () => void }) {
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <button type="button" className="btn btn--ghost back-button" onClick={onBack}>
-      <span aria-hidden="true">←</span> Voltar para a lista
-    </button>
+    <div className="detail__field">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function AuditTrail({
+  entries,
+  now,
+}: {
+  entries: { id: string; at: number; actor: string; action: string; detail?: string }[];
+  now: number;
+}) {
+  if (entries.length === 0) {
+    return (
+      <p className="detail__audit-empty">
+        Nenhuma decisão registrada ainda nesta demonstração.
+      </p>
+    );
+  }
+
+  return (
+    <div className="audit">
+      <h3 className="audit__title">
+        Trilha de auditoria
+        <span className="pill pill--synthetic">sintética</span>
+      </h3>
+      <p className="audit__note">
+        Registro simulado: a API real não guarda quem decidiu — a autenticação é uma chave
+        compartilhada.
+      </p>
+      <ol className="audit__list">
+        {entries.map((entry) => (
+          <li key={entry.id} className="audit__entry">
+            <span className="audit__when">
+              {formatDateTime(new Date(entry.at).toISOString())} ·{' '}
+              {formatRelative(new Date(entry.at).toISOString(), now)}
+            </span>
+            <span className="audit__what">
+              <strong>{entry.actor}</strong> — {entry.action}
+            </span>
+            {entry.detail !== undefined && (
+              <span className="audit__detail">{entry.detail}</span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

@@ -45,3 +45,37 @@ export function formatSeconds(value: number | null | undefined): string {
 export function shortId(id: string): string {
   return id.length > 8 ? `${id.slice(0, 8)}…` : id;
 }
+
+// Coarse duration, for "waiting for 2 h 10 min" style labels. Deliberately
+// drops detail above an hour: a queue age of "2 h" is actionable,
+// "2 h 10 min 4 s" is noise.
+export function formatDuration(ms: number | null | undefined): string {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return '—';
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds} s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const rest = minutes % 60;
+    return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+  }
+  const days = Math.floor(hours / 24);
+  const restHours = hours % 24;
+  return restHours === 0 ? `${days} d` : `${days} d ${restHours} h`;
+}
+
+export function formatLatency(ms: number | null | undefined): string {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return '—';
+  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`;
+}
+
+export function formatPercent(ratio: number | null | undefined, digits = 0): string {
+  if (typeof ratio !== 'number' || !Number.isFinite(ratio)) return '—';
+  return `${(ratio * 100).toFixed(digits)}%`;
+}
+
+export function formatScore(score: number | null | undefined): string {
+  if (typeof score !== 'number' || !Number.isFinite(score)) return '—';
+  return Number.isInteger(score) ? String(score) : score.toFixed(1).replace('.', ',');
+}

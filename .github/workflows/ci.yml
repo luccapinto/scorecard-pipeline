@@ -143,7 +143,7 @@ jobs:
           retention-days: 7
 
   frontend:
-    name: Frontend (typecheck, tests, build)
+    name: Frontend (typecheck, tests, build, a11y, bundle budget)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -164,11 +164,35 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      # Reads the real token values out of tokens.css and fails on any pair
+      # below WCAG AA, in either theme. Cheap, and catches the one regression
+      # a reviewer cannot see in a diff.
+      - name: Check design-token contrast (WCAG AA)
+        run: npm run check:contrast
+
       - name: Run tests
         run: npm test -- --run
 
       - name: Build
         run: npm run build
+
+      - name: Check initial-load bundle budget
+        run: npm run check:size
+
+      - name: Install Chromium for the accessibility audit
+        run: npx playwright install --with-deps chromium
+
+      # axe-core against the built app in a real browser: contrast, focus
+      # order and accessible names need real layout, which jsdom does not
+      # have. Runs in demo mode, which needs no backend and is deterministic.
+      - name: Accessibility audit (axe-core, WCAG 2.1 AA)
+        run: |
+          npm run preview -- --port 4173 --strictPort &
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:4173 >/dev/null 2>&1 && break
+            sleep 1
+          done
+          npm run check:a11y
 
   docker:
     name: Docker build

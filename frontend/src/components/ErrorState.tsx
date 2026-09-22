@@ -1,40 +1,57 @@
-import { AuthError, isApiError, NotFoundError, ApiUnavailableError, errorMessage } from '../api/errors';
+import type { Route } from '../app/routes';
+import { loadConfig } from '../config/settings';
+import { diagnose } from '../features/health/errorTaxonomy';
+import { hrefFor } from '../hooks/useHashRoute';
+import { Icon } from './ui/Icon';
 
 interface Props {
   error: unknown;
   onRetry?: () => void;
-  onOpenConfig?: () => void;
+  /**
+   * Base URL, used only to tell a CORS rejection from a dead host. Defaults
+   * to the configured one: every caller needs the distinction, and threading
+   * it through each view is exactly the kind of prop that gets forgotten —
+   * which silently degrades every CORS failure into a wrong "API is down".
+   */
+  baseUrl?: string;
+  /** Current route, so the "open settings" action keeps the mode. */
+  route?: Route;
 }
 
-// Never a blank screen: renders a clear, differentiated message for the three
-// failure classes the spec calls out (API down / 401-403 / 404) plus a
-// generic fallback, with a contextual recovery action.
-export function ErrorState({ error, onRetry, onOpenConfig }: Props) {
-  const isAuth = error instanceof AuthError;
-  const isDown = error instanceof ApiUnavailableError;
-  const isNotFound = error instanceof NotFoundError;
-
-  let title = 'Erro';
-  if (isDown) title = 'API fora do ar';
-  else if (isAuth) title = 'Chave de API inválida';
-  else if (isNotFound) title = 'Não encontrado';
-  else if (isApiError(error) && error.status) title = `Erro ${error.status}`;
+// Never a blank screen. The classification lives in `errorTaxonomy` (pure and
+// unit-tested); this component only renders it, plus the one action worth
+// offering for that class of failure.
+export function ErrorState({ error, onRetry, baseUrl, route }: Props) {
+  const diagnosis = diagnose(error, { baseUrl: baseUrl ?? loadConfig().baseUrl });
+  const settingsHref =
+    route === undefined
+      ? null
+      : hrefFor({ mode: route.mode, name: 'settings', clockAnchor: route.clockAnchor });
 
   return (
-    <div className="error-state" role="alert">
-      <h2 className="error-state__title">{title}</h2>
-      <p className="error-state__message">{errorMessage(error)}</p>
-      <div className="error-state__actions">
-        {onRetry && (
-          <button type="button" className="btn" onClick={onRetry}>
-            Tentar novamente
-          </button>
-        )}
-        {isAuth && onOpenConfig && (
-          <button type="button" className="btn btn--primary" onClick={onOpenConfig}>
-            Abrir configuração
-          </button>
-        )}
+    <div className={`error-state error-state--${diagnosis.kind}`} role="alert">
+      <span className="error-state__icon" aria-hidden="true">
+        <Icon name="alert" size="1.5rem" />
+      </span>
+      <div className="error-state__body">
+        <h2 className="error-state__title">{diagnosis.title}</h2>
+        <p className="error-state__message">{diagnosis.explanation}</p>
+        <p className="error-state__next">
+          <strong>O que fazer:</strong> {diagnosis.nextStep}
+        </p>
+        <div className="error-state__actions">
+          {onRetry && (
+            <button type="button" className="btn" onClick={onRetry}>
+              <Icon name="rotate" />
+              Tentar novamente
+            </button>
+          )}
+          {diagnosis.kind === 'auth' && settingsHref !== null && (
+            <a className="btn btn--primary" href={settingsHref}>
+              Abrir configuração
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );

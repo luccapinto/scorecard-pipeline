@@ -1,0 +1,64 @@
+name: Deploy demo to GitHub Pages
+
+# Publishes the SPA so the demonstration mode can be tried without cloning
+# anything. This is safe to host publicly because demo mode performs zero
+# network I/O and ships no credentials: it is a static bundle with a synthetic
+# dataset baked in. API mode is still present on the deployed build, but it
+# points at whatever backend the visitor configures, which by default is
+# localhost — so a public visitor simply sees the demo.
+
+on:
+  push:
+    branches: [main]
+  # Lets the demo be published from a feature branch while a PR is in review.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; never cancel a run that is already publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # vite's `base: './'` makes every asset URL relative, so the same bundle
+      # works at the repository subpath Pages serves from without any rewrite.
+      # The 404 copy makes the hash router survive a deep link refresh.
+      - name: Add SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: frontend/dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

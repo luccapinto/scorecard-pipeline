@@ -1,0 +1,320 @@
+/* Screen-level styles for the observability and configuration views.
+
+   The `.card` / `.data-row` families at the top are deliberately generic and
+   unopinionated: other screens reuse them, so they carry surface, border and
+   rhythm only — never a colour that means something. Anything that encodes a
+   meaning lives under a `health-` or `settings-` prefix. */
+
+/* --- Generic, shared surfaces --------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-5);
+  margin-bottom: var(--sp-5);
+}
+
+.card__title {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-snug);
+}
+
+.card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+/* Label/value pair. Wraps to two lines on narrow viewports rather than
+   truncating, because every value here is diagnostic. */
+.data-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-2) 0;
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+.data-row:last-child {
+  border-bottom: none;
+}
+
+.data-row__label {
+  flex: 0 0 11rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.data-row__value {
+  flex: 1 1 14rem;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: var(--num-tabular);
+}
+
+/* --- Saúde e observabilidade ---------------------------------------------- */
+
+.health-grid {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.health-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+}
+
+.health-status__icon {
+  flex: none;
+}
+
+.health-status--ok {
+  color: var(--ok);
+}
+
+.health-status--warn {
+  color: var(--warn);
+}
+
+.health-status--danger {
+  color: var(--danger);
+}
+
+.health-diagnosis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.health-diagnosis__text,
+.health-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.health-diagnosis__next {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  border: var(--border-w) solid var(--border);
+  line-height: var(--lh-normal);
+}
+
+.health-problems {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.health-problem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  border: var(--border-w) solid var(--warn-border);
+  color: var(--text);
+}
+
+.health-problem__key {
+  font-weight: var(--fw-semibold);
+}
+
+.health-problem__arrow {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.health-problem__code {
+  color: var(--warn);
+}
+
+/* The taxonomy table is wide by nature; let it scroll rather than crush the
+   third column into one word per line. */
+.health-table-wrap {
+  overflow-x: auto;
+}
+
+.health-table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: var(--fs-sm);
+}
+
+.health-table caption {
+  caption-side: top;
+  text-align: left;
+  padding-bottom: var(--sp-3);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.health-table th,
+.health-table td {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+  vertical-align: top;
+}
+
+.health-table th {
+  color: var(--text-muted);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+.health-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* --- Configuração --------------------------------------------------------- */
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.settings-field__label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  padding: 0;
+}
+
+.settings-input {
+  width: 100%;
+  max-width: 34rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+
+.settings-input--select {
+  max-width: 20rem;
+}
+
+.settings-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.settings-key .settings-input {
+  flex: 1 1 18rem;
+  max-width: 28rem;
+}
+
+.settings-help {
+  margin: 0;
+  max-width: 44rem;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.settings-fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.settings-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.settings-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+/* The checked state is marked by the native radio AND by the surface change,
+   so it never depends on colour alone. */
+.settings-radio:has(input:checked) {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.settings-status {
+  margin: 0;
+  color: var(--ok);
+  font-size: var(--fs-sm);
+}
+
+.settings-confirm {
+  margin: 0;
+  flex: 1 1 100%;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+/* --- Responsive ----------------------------------------------------------- */
+
+@media (max-width: 560px) {
+  .card {
+    padding: var(--sp-4);
+    border-radius: var(--radius-sm);
+  }
+
+  .data-row__label {
+    flex: 1 1 100%;
+  }
+
+  .settings-actions {
+    align-items: stretch;
+  }
+}

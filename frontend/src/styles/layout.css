@@ -1,0 +1,379 @@
+/* Application shell: persistent side navigation, sticky top bar, content
+   column. Two breakpoints only — the nav collapses to a horizontal scroller
+   below 900px, and the content column drops its side padding below 560px. */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--nav-w) minmax(0, 1fr);
+  min-height: 100%;
+}
+
+/* --- Side navigation ------------------------------------------------------ */
+
+.nav {
+  grid-column: 1;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-3);
+  background: var(--surface);
+  border-right: var(--border-w) solid var(--border);
+  z-index: var(--z-nav);
+  overflow-y: auto;
+}
+
+.nav__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+.nav__mark {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--text-inverse);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-sm);
+  letter-spacing: -0.04em;
+}
+
+/* The title and subtitle are spans; without an explicit column they run
+   together as inline text ("Scorecard PipelineDados sintéticos"). */
+.nav__brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nav__title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.nav__subtitle {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.nav__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.nav__group-label {
+  padding: 0 var(--sp-2);
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.nav__link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--fs-base);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  width: 100%;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.nav__link:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.nav__link[aria-current='page'] {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
+}
+
+.nav__icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+}
+
+.nav__label {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Count of items needing a human, shown on the nav item itself. */
+.nav__badge {
+  flex: none;
+  min-width: 1.35rem;
+  padding: 0 var(--sp-1);
+  border-radius: var(--radius-pill);
+  background: var(--warn-soft);
+  border: var(--border-w) solid var(--warn-border);
+  color: var(--warn);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: var(--num-tabular);
+  text-align: center;
+}
+
+.nav__pill {
+  flex: none;
+  padding: 1px var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--neutral-soft);
+  border: var(--border-w) solid var(--neutral-border);
+  color: var(--neutral);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.nav__spacer {
+  flex: 1;
+}
+
+.nav__foot {
+  padding-top: var(--sp-3);
+  border-top: var(--border-w) solid var(--border);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* --- Main column ---------------------------------------------------------- */
+
+.shell__main {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--topbar-h);
+  padding: var(--sp-2) var(--sp-5);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+/* color-mix is widely supported but the blur+alpha combo degrades badly if it
+   is not; fall back to an opaque bar. */
+@supports not (backdrop-filter: blur(8px)) {
+  .topbar {
+    background: var(--bg);
+  }
+}
+
+.topbar__crumbs {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.topbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.content {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.view-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.view-head__text {
+  min-width: 0;
+}
+
+.view-head__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.view-head__sub {
+  margin-top: var(--sp-1);
+  color: var(--text-muted);
+  font-size: var(--fs-base);
+  max-width: 68ch;
+}
+
+.view-head__actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* --- Breadcrumb ----------------------------------------------------------- */
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.crumbs__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.crumbs__link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+}
+.crumbs__link:hover {
+  color: var(--text);
+}
+
+.crumbs__sep {
+  color: var(--text-faint);
+}
+
+.crumbs__current {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Responsive ----------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nav {
+    grid-column: 1;
+    position: static;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--sp-2);
+    /* Without min-width:0 a grid item refuses to shrink below its content,
+       so the internal scroller never engages and the whole document gains a
+       horizontal scrollbar instead. */
+    min-width: 0;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: var(--border-w) solid var(--border);
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  .nav__brand {
+    border-bottom: 0;
+    border-right: var(--border-w) solid var(--border);
+    padding: 0 var(--sp-3) 0 0;
+    flex: none;
+  }
+
+  .nav__brand-text,
+  .nav__group-label,
+  .nav__spacer,
+  .nav__foot {
+    display: none;
+  }
+
+  .nav__group {
+    flex-direction: row;
+    gap: var(--sp-1);
+  }
+
+  .nav__link {
+    white-space: nowrap;
+    width: auto;
+  }
+
+  .shell__main {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 560px) {
+  .content {
+    padding: var(--sp-4) var(--sp-3);
+    gap: var(--sp-4);
+  }
+
+  .topbar {
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  /* The trail duplicates the page <h1> right below it, and at this width it
+     is what pushes the action cluster off-screen. The nav still marks the
+     current page with aria-current, so nothing is lost for assistive tech. */
+  .topbar__crumbs {
+    display: none;
+  }
+
+  .topbar__actions {
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .nav__label {
+    display: none;
+  }
+
+  .nav__link {
+    padding: var(--sp-2);
+  }
+}

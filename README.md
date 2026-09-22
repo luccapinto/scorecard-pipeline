@@ -321,25 +321,134 @@ python -m uvicorn app.main:app --reload
 
 ## 🖥️ Web Interface
 
-The `frontend/` directory holds the **source** of a React + TypeScript SPA that
-works as a pipeline dashboard: per-stage interview counts, items that need human
-action (`aguardando_aprovacao` and `falhou`) surfaced first, the scorecard with a
-loud visual alert for unverified evidence (possible LLM hallucination), the
-transcript split by speaker, and a two-step confirmation for approve/reject.
+The `frontend/` directory holds the **source** of a React 19 + TypeScript SPA.
+It is the review surface for the pipeline: where each interview is, what needs
+a human, and — the point of the whole system — an unmissable alarm when the
+model cited a sentence that is not in the transcript.
 
-- **In Docker Compose** the SPA is built from source (multi-stage Node → nginx)
-  and served at `http://localhost:5173`, an origin already on the API's CORS
-  allowlist.
+> **▶ Try it live, no clone and no backend required:**
+> **<https://luccapinto.github.io/scorecard-pipeline/#/demo/esteira>**
+>
+> That link opens the SPA in **demonstration mode**: a synthetic, deterministic
+> dataset that runs entirely in your browser. No request leaves the page, so
+> there is nothing to install and nothing to configure.
+
+![Pipeline dashboard](docs/assets/esteira.png)
+
+### Two modes, never mixed
+
+The API deliberately does not model a candidate entity, hiring funnel stages,
+decision authorship, an audit trail, or message history. Rather than fabricate
+those — in a project whose whole subject is *detecting fabrication* — the SPA
+runs in two explicit modes, selected in the URL:
+
+- **API mode** (`#/...`) — the real backend, nothing invented. Where the
+  contract has no answer, the UI **states the absence** and explains why in one
+  line.
+- **Demo mode** (`#/demo/...`) — a deterministic synthetic dataset served
+  entirely in the browser. **Zero network requests leave the page**, in any
+  flow, enforced by a test that drives the real app with every network
+  primitive replaced by a throwing spy.
+
+The rationale, the rejected alternatives and the accepted cost are recorded in
+[ADR 0005](docs/adr/0005-dois-modos-api-e-demonstracao.md).
+
+Crucially, the hallucination flag is **derived even in the demo**: the client
+ports the normalisation rule from `app/text_utils.py::clean_text` and actually
+searches the transcript, so a flagged quote is flagged because it genuinely is
+not there.
+
+### The screens
+
+#### The scorecard, and the alarm the whole system exists for
+
+Each competency shows its 1–5 score **and the BARS anchor text behind it** —
+the number alone means nothing. When a citation cannot be found in the
+transcript, the card becomes a loud, structural alert: icon, wording, border
+and position, never colour alone. It also shows the closest passage the search
+*did* find, so the reviewer can judge rather than just be warned.
+
+![Scorecard with two unverified citations](docs/assets/entrevista-alerta.png)
+
+Clicking a citation scrolls to it in the transcript and highlights it in place.
+
+#### The approval queue
+
+Ordered by waiting time, with everything needed to decide visible without
+opening the item: role, the model's recommendation, the average score, and how
+many citations were actually located. **There is no bulk approval**, by design —
+not even in the demo.
+
+![Approval queue](docs/assets/aprovacoes.png)
+
+#### Integrations and messages
+
+A faithful rendering of the Slack Block Kit payload `app/notifications.py`
+actually builds — including the per-competency verification marker and the
+omission of the action buttons when there is no approval token — with the raw
+JSON one click away.
+
+![Integrations and Slack preview](docs/assets/integracoes.png)
+
+#### The candidate funnel — labelled as synthetic, on the screen
+
+This is the "ATS" view, and it is the clearest example of the honesty rule:
+hiring phases do not exist in the backend, so the screen says so in a banner
+before showing anything.
+
+![Candidate funnel](docs/assets/funil.png)
+
+#### Failures, and getting out of them
+
+`error_log` is a full Python traceback. It is split into what broke and where,
+with the frames folded away until asked for, plus the reprocess action.
+
+![Failed interview with traceback](docs/assets/falha.png)
+
+#### Ingestion, with the contract made legible
+
+The exact webhook request, the HMAC signature marked as server-side only,
+idempotency via `external_id`, and `202` explained as acceptance rather than
+completion.
+
+![Ingestion and webhook inspector](docs/assets/ingestao.png)
+
+#### Both themes are designed, and it works on a phone
+
+Dark is an independently chosen palette, not a filter over light, and every
+colour pair in both themes is checked against WCAG AA in CI.
+
+| Dark theme | Mobile, 390 px |
+| --- | --- |
+| ![Dashboard in dark theme](docs/assets/esteira-escuro.png) | ![Dashboard on mobile](docs/assets/esteira-mobile.png) |
+
+More screens — the interview list, observability and settings — are in
+[`docs/assets/`](docs/assets/).
+
+All screenshots are generated by `frontend/scripts/screenshots.mjs` from demo
+mode, which is deterministic precisely so they can be reproduced on any machine.
+
+### Running it
+
+- **With Docker Compose** the SPA is built from source (multi-stage Node →
+  nginx) and served at `http://localhost:5173`, an origin already on the API's
+  CORS allowlist.
 - **In development**: `cd frontend && npm install && npm run dev` (port 5173 is
   mandatory — the CORS allowlist depends on it).
+- **Demo mode needs no backend at all**: open `#/demo/esteira` on any build.
 - The API URL and `X-API-Key` are configured **at runtime** in the UI itself
-  (persisted in the browser's `localStorage`) — no key or host is baked into the
-  build.
+  (persisted in the browser's `localStorage`) — no key or host is baked into
+  the build. The key never appears in a log, a URL or an error message.
 - How to run, build and test: see [`frontend/README.md`](frontend/README.md).
 
-The API remains the system's contract interface and is fully usable without the
-SPA (see the end-to-end validation below and the interactive docs at
-`http://localhost:8000/docs`).
+### Quality gates
+
+Enforced by the `frontend` CI job: TypeScript `strict`, **260 tests**
+(Vitest + Testing Library), a WCAG AA contrast check over the design tokens in
+both themes, an **axe-core audit across 10 screens × 2 themes**, and a
+**≤ 180 KB gzipped** initial-load budget (currently ~99 KB; the demo dataset is
+a separate chunk that API-mode users never download). Runtime dependencies:
+`react` and `react-dom`, and nothing else.
 
 ---
 
@@ -379,12 +488,20 @@ curl -X POST http://127.0.0.1:8000/interviews/{INTERVIEW_ID}/action \
 ### 4. Operations
 ```bash
 curl http://127.0.0.1:8000/health                                  # DB and Redis liveness
+curl -H "X-API-Key: *** \
+  http://127.0.0.1:8000/integrations                               # which integrations are configured
 curl -X POST -H "X-API-Key: *** \
   http://127.0.0.1:8000/interviews/{INTERVIEW_ID}/reprocess        # reprocess a 'falhou' interview
 curl -X POST -H "X-API-Key: *** \
   http://127.0.0.1:8000/admin/reconcile                            # re-enqueue orphan 'recebida' interviews
 python -m app.maintenance                                          # reconciliation + retention via cron
 ```
+
+`GET /integrations` reports **only** whether each integration (Slack, outbound
+webhook, transcription, scoring, HMAC and API key) is configured, plus the
+provider/model names in use. It never returns credentials, URLs or paths —
+not even masked — so the web interface can render a configuration screen
+without turning a read-scoped API key into a credential oracle.
 
 ---
 
