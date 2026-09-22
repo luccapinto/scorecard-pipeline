@@ -50,8 +50,16 @@ jobs:
 
       # vite's `base: './'` makes every asset URL relative, so the same bundle
       # works at the repository subpath Pages serves from without any rewrite.
-      # The 404 copy makes the hash router survive a deep link refresh.
-      - name: Add SPA fallback
+      #
+      # The 404 copy does NOT make deep links work — hash routing already
+      # does that, because the fragment in `/scorecard-pipeline/#/demo/esteira`
+      # is never sent to the server: the request is for the base path and
+      # returns index.html. What this copy buys is a graceful landing when
+      # someone requests a PATH that does not exist (a hand-typed
+      # `/scorecard-pipeline/entrevistas`, say): GitHub serves the app instead
+      # of its generic 404 page, and the app boots with no hash and shows the
+      # dashboard. The HTTP status is still 404, which is correct.
+      - name: Serve the app on unknown paths
         run: cp dist/index.html dist/404.html
 
       - uses: actions/configure-pages@v5
