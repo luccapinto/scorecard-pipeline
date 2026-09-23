@@ -71,6 +71,7 @@ npm run check:contrast   # WCAG AA sobre os tokens, nos dois temas
 npm run check:size       # orçamento de bundle (gzip) sobre o build
 npm run check:a11y       # axe-core no app buildado (precisa do preview no ar)
 npm run screenshots      # regenera as imagens de docs/assets (precisa do preview)
+npm run demo-video       # grava o vídeo de demonstração em docs/demo/ (precisa do preview e do ffmpeg)
 npm run build:demo-reference  # regenera o dataset de referência do demo
 ```
 
