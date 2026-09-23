@@ -20,49 +20,58 @@ const FPS = 30;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-/** Runs in every document. Everything is pointer-events:none, so it never intercepts input. */
+/**
+ * Runs in every document. The overlay lives in a *closed* shadow root: the
+ * app's global CSS (a `.card` with margins and borders, say) cannot restyle it,
+ * and page locators like `getByText` cannot see its captions. The host is
+ * pointer-events:none, so it never intercepts input.
+ */
 function overlayInit() {
   const CSS = `
-    #__demo, #__demo * { pointer-events: none !important; box-sizing: border-box; }
-    #__demo { position: fixed; inset: 0; z-index: 2147483647; font-family: inherit; }
-    #__demo .cur { position: absolute; left: 0; top: 0; width: 26px; height: 26px; opacity: 0;
+    .root { position: fixed; inset: 0; font-family: inherit; line-height: normal; letter-spacing: normal;
+      text-transform: none; color: #fff; }
+    .root, .root * { box-sizing: border-box; }
+    .cur { position: absolute; left: 0; top: 0; width: 26px; height: 26px; opacity: 0;
       transform: translate(-100px, -100px); transition: opacity .2s; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
-    #__demo .card.on ~ .cur { opacity: 0 !important; }
-    #__demo .ripple { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
-      background: rgba(123,162,255,.5); animation: __demo-ripple .5s ease-out forwards; }
-    @keyframes __demo-ripple { from { transform: scale(.2); opacity: 1 } to { transform: scale(1.4); opacity: 0 } }
-    #__demo .cap { position: absolute; left: 50%; bottom: 26px; max-width: 78%; padding: 12px 22px;
+    .card.on ~ .cur { opacity: 0 !important; }
+    .ripple { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
+      background: rgba(123,162,255,.5); animation: ripple .5s ease-out forwards; }
+    @keyframes ripple { from { transform: scale(.2); opacity: 1 } to { transform: scale(1.4); opacity: 0 } }
+    .cap { position: absolute; left: 50%; bottom: 26px; max-width: 78%; padding: 12px 22px;
       transform: translate(-50%, 12px); opacity: 0; transition: opacity .25s, transform .25s;
       border-radius: 14px; background: rgba(10,14,26,.86); border: 1px solid rgba(255,255,255,.14);
       backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(0,0,0,.35); text-align: center; }
-    #__demo .cap.on { opacity: 1; transform: translate(-50%, 0); }
-    #__demo .cap .step { display: block; margin-bottom: 3px; font-size: 11px; font-weight: 600;
+    .cap.on { opacity: 1; transform: translate(-50%, 0); }
+    .step { display: block; margin-bottom: 3px; font-size: 11px; font-weight: 600;
       letter-spacing: .12em; text-transform: uppercase; color: #a9c2ff; }
-    #__demo .cap .txt { display: block; font-size: 19px; font-weight: 500; line-height: 1.35; color: #fff; }
-    /* Overlay text is CSS-generated, so page locators like getByText never match it. */
-    #__demo [data-text]::after { content: attr(data-text); }
-    #__demo .card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: 14px; opacity: 0; transition: opacity .6s; color: #fff; text-align: center;
+    .txt { display: block; font-size: 19px; font-weight: 500; line-height: 1.35; }
+    .card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 14px; opacity: 0; transition: opacity .6s; text-align: center;
       background: radial-gradient(1000px 600px at 50% 40%, rgba(43,82,199,.45), transparent 60%), #0b0f1a; }
-    #__demo .card.on { opacity: 1; }
-    #__demo .card h1 { margin: 0; font-size: 60px; font-weight: 700; letter-spacing: -.02em; }
-    #__demo .card p { margin: 0; font-size: 23px; line-height: 1.4; color: rgba(255,255,255,.8); max-width: 940px; }
-    #__demo .card small { margin-top: 14px; font-size: 16px; color: #a9c2ff; letter-spacing: .02em; }
+    .card.on { opacity: 1; }
+    .card h1 { margin: 0; font-size: 60px; font-weight: 700; letter-spacing: -.02em; }
+    .card p { margin: 0; font-size: 23px; line-height: 1.4; color: rgba(255,255,255,.8); max-width: 940px; }
+    .card small { margin-top: 14px; font-size: 16px; color: #a9c2ff; letter-spacing: .02em; }
   `;
   const CURSOR = `<svg viewBox="0 0 24 24" width="26" height="26"><path d="M3 2l17 10.5-7.4 1.3L17 21.5l-3 1.5-4.3-7.8L4 20z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
   const state = { step: '', text: '' };
-  let root, cur, cap, card;
+  let host, root, cur, cap, card;
 
   function build() {
-    root = document.createElement('div');
-    root.id = '__demo';
-    root.innerHTML = `<style>${CSS}</style><div class="cap"><span class="step"></span><span class="txt"></span></div><div class="card"></div><div class="cur">${CURSOR}</div>`;
-    [cur, cap, card] = ['.cur', '.cap', '.card'].map((s) => root.querySelector(s));
+    // A custom tag: no page selector targets it, and inline !important beats any that tried.
+    host = document.createElement('demo-overlay');
+    host.style.cssText =
+      'all: initial !important; position: fixed !important; inset: 0 !important;' +
+      'z-index: 2147483647 !important; pointer-events: none !important; font-family: inherit !important;';
+    const shadow = host.attachShadow({ mode: 'closed' });
+    shadow.innerHTML = `<style>${CSS}</style><div class="root"><div class="cap"><span class="step"></span><span class="txt"></span></div><div class="card"></div><div class="cur">${CURSOR}</div></div>`;
+    root = shadow.querySelector('.root');
+    [cur, cap, card] = ['.cur', '.cap', '.card'].map((s) => shadow.querySelector(s));
   }
   function attach() {
     if (!document.body) return;
-    if (!root) build();
-    if (!root.isConnected) document.body.appendChild(root);
+    if (!host) build();
+    if (!host.isConnected) document.body.appendChild(host);
   }
   function place(x, y) {
     if (!cur) return;
@@ -101,8 +110,8 @@ function overlayInit() {
       state.step = step;
       state.text = text;
       const swap = () => {
-        cap.querySelector('.step').dataset.text = step;
-        cap.querySelector('.txt').dataset.text = text;
+        cap.querySelector('.step').textContent = step;
+        cap.querySelector('.txt').textContent = text;
         cap.classList.toggle('on', !!text);
       };
       if (instant || !cap.classList.contains('on')) return swap();
@@ -113,8 +122,6 @@ function overlayInit() {
       attach();
       if (html) card.innerHTML = html;
       card.classList.toggle('on', !!html);
-      // Clear after the fade so the card's copy never shadows page text.
-      if (!html) setTimeout(() => { if (!card.classList.contains('on')) card.innerHTML = ''; }, 700);
     },
   };
 }
