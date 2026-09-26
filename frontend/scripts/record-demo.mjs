@@ -11,7 +11,9 @@
 //   npm run preview &            # or PREVIEW_URL=... npm run demo-video
 //   npm run demo-video
 //
-// Output: docs/demo/demo.mp4 (not committed — hosted as a GitHub attachment).
+// Output (not committed): docs/demo/demo.mp4 — the README version, under
+// GitHub's 10 MB attachment limit — and docs/demo/demo-linkedin.mp4, the
+// full-quality 2560×1440 file for social posts.
 // Needs ffmpeg on PATH.
 
 import { dirname, relative, resolve } from 'node:path';
@@ -22,7 +24,10 @@ import { Director, SCALE, VIEWPORT } from './demo/director.mjs';
 import { urlFor } from './routes.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(here, '../../docs/demo/demo.mp4');
+const OUT = {
+  readme: resolve(here, '../../docs/demo/demo.mp4'),
+  linkedin: resolve(here, '../../docs/demo/demo-linkedin.mp4'),
+};
 /** Height of the sticky top bar at the recording viewport. */
 const TOPBAR = 78;
 
@@ -182,4 +187,4 @@ await d.card(
 
 await d.finish(OUT);
 await browser.close();
-console.log(`Demo gravada em ${relative(process.cwd(), OUT)}`);
+for (const file of Object.values(OUT)) console.log(`Demo gravada em ${relative(process.cwd(), file)}`);
