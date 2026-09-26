@@ -16,7 +16,7 @@ entirely **locally** (WhisperX + pyannote, without sending audio to third
 parties) or **via API** (Deepgram nova-3, the default — one call handles both
 steps). Switching is an environment variable; the pipeline, the state machine and the scoring do not change.
 
-https://github.com/user-attachments/assets/d304a212-392f-44b0-9281-27b7a134cc4c
+https://github.com/user-attachments/assets/28bc62f2-5d57-4e0d-a3b4-7f0e5bde10e8
 
 ## 📑 Table of Contents
 
