@@ -485,7 +485,7 @@ encodes it with ffmpeg. The MP4 is hosted as a GitHub attachment, not committed.
 
 ### Quality gates
 
-Enforced by the `frontend` CI job: TypeScript `strict`, **300 tests** (Vitest +
+Enforced by the `frontend` CI job: TypeScript `strict`, **301 tests** (Vitest +
 Testing Library, including a project that compiles the app as the showcase and
 tests the public bundle as built), a WCAG AA contrast check over the design
 tokens in both themes, an **axe-core audit of every screen and every tour step ×

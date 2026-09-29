@@ -49,7 +49,7 @@ const DEMO_ACTORS = ['Rita Avaliadora (fictícia)', 'Téo Revisor (fictício)'];
 export interface DemoState {
   /** Epoch ms the dataset is anchored to. */
   anchor: number;
-  /** Virtual time accumulated by `step` actions. */
+  /** Virtual time accumulated by steps and by writes to existing rows. */
   elapsedMs: number;
   interviews: Interview[];
   runtimeSpecs: Record<string, InterviewSpec>;
@@ -89,6 +89,14 @@ export type DemoAction =
 
 /** One step moves the interview a stage and the virtual clock this much. */
 const STEP_MS = 45_000;
+/**
+ * A decision or a reprocess moves the virtual clock this much. The backend's
+ * `updated_at` moves on every write (SQLModel `onupdate`), and the list
+ * projection relies on exactly that to notice a row changed; a write stamped
+ * with the instant of the previous one would stay invisible outside its own
+ * screen.
+ */
+const WRITE_MS = 1_000;
 
 /** Status each preparation level guarantees, in pipeline order. */
 const LEVEL_TARGET: Record<SimulationLevel, InterviewStatus> = {
@@ -125,6 +133,11 @@ export function initialDemoState(anchor: number): DemoState {
 
 export function demoNow(state: DemoState): number {
   return state.anchor + state.elapsedMs;
+}
+
+/** The instant the next write to an existing row lands on the virtual clock. */
+export function nextWriteAt(state: DemoState): number {
+  return demoNow(state) + WRITE_MS;
 }
 
 /**
@@ -208,7 +221,7 @@ function decide(state: DemoState, id: string, action: DecisionAction): DemoState
     );
   }
 
-  const now = demoNow(state);
+  const now = nextWriteAt(state);
   const status: InterviewStatus = action === 'approve' ? 'aprovada' : 'rejeitada';
   const actor = DEMO_ACTORS[Object.keys(state.audit).length % DEMO_ACTORS.length];
 
@@ -222,6 +235,7 @@ function decide(state: DemoState, id: string, action: DecisionAction): DemoState
 
   return {
     ...state,
+    elapsedMs: now - state.anchor,
     interviews: state.interviews.map((item) =>
       item.id === id ? { ...item, status, updated_at: isoFromEpoch(now) } : item,
     ),
@@ -244,9 +258,10 @@ function reprocess(state: DemoState, id: string): DemoState {
     );
   }
 
-  const now = demoNow(state);
+  const now = nextWriteAt(state);
   return {
     ...state,
+    elapsedMs: now - state.anchor,
     interviews: state.interviews.map((item) =>
       item.id === id
         ? {

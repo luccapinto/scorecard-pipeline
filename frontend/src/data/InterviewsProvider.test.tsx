@@ -119,4 +119,36 @@ describe('InterviewsProvider dataset identity', () => {
     expect(document.querySelector('.bcard--fresh')).toBeNull();
     expect(screen.getByRole('button', { name: /Simular nova entrevista/i })).toBeEnabled();
   });
+
+  it('counts a decision on an interview the simulation just finished', async () => {
+    // The simulation's last step and the decision happen at the same virtual
+    // instant unless a write moves the clock. The list projection keeps a row
+    // while `updated_at` is unchanged, so an unmoved clock left the decided
+    // interview "awaiting" in every shared screen: the Decisões badge stayed
+    // one too high after approving it.
+    const user = userEvent.setup();
+    const matchMedia = window.matchMedia;
+    // Reduced motion shortens the walk between stages; the path is the same.
+    window.matchMedia = ((query: string) => ({
+      ...matchMedia(query),
+      matches: query.includes('prefers-reduced-motion'),
+    })) as typeof window.matchMedia;
+    const badge = () => document.querySelector('.main-nav__badge')?.textContent ?? '';
+
+    try {
+      await openPipeline();
+      expect(badge()).toMatch(/^5/);
+      await user.click(screen.getByRole('button', { name: /Simular nova entrevista/i }));
+      const open = await screen.findByRole('link', { name: 'Abrir o scorecard' }, { timeout: 5000 });
+      expect(badge()).toMatch(/^6/);
+
+      await user.click(open);
+      await user.click(await screen.findByRole('button', { name: 'Aprovar' }));
+      await user.click(screen.getByRole('button', { name: /Confirmar aprovar/i }));
+
+      await waitFor(() => expect(badge()).toMatch(/^5/));
+    } finally {
+      window.matchMedia = matchMedia;
+    }
+  });
 });
