@@ -70,11 +70,11 @@ export function PipelineBoard({ summaries, route, jobTitles, playingId, simulate
   const failed = summaries.filter((summary) => summary.status === 'falhou');
 
   return (
-    <section className="board" aria-labelledby="board-title" data-tour="pipeline">
+    <section className="board" aria-labelledby="board-title">
       <h2 id="board-title" className="sr-only">
         Entrevistas por etapa da esteira
       </h2>
-      <ol className="board__stages">
+      <ol className="board__stages" data-tour="pipeline">
         {STAGES.map((stage, index) => {
           const cards = summaries.filter((summary) => stage.statuses.includes(summary.status));
           // The newest simulation always stays visible, even in a full column.
@@ -191,10 +191,13 @@ function BoardCard({ summary, route, jobTitle, playing, fresh }: CardProps) {
         })}
       >
         {fresh && <span className="bcard__tag">Nova</span>}
-        <span className={`bcard__name ${named ? '' : 'bcard__name--pending'}`}>
-          {named ? summary.candidateName : 'Nome vem do scorecard'}
+        {/* Before scoring there is no name: it comes out of the scorecard.
+            The job and the id keep early cards distinguishable instead of a
+            column of identical placeholders. */}
+        <span className="bcard__name">{named ? summary.candidateName : (jobTitle ?? 'Sem vaga')}</span>
+        <span className={named ? 'bcard__job' : 'bcard__job bcard__job--id'}>
+          {named ? (jobTitle ?? 'Sem vaga') : summary.id}
         </span>
-        <span className="bcard__job">{jobTitle ?? 'Sem vaga'}</span>
         {summary.hasEvidenceAlert && (
           <span className="bcard__flag">
             <Icon name="alert" />

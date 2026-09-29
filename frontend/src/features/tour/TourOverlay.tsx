@@ -121,7 +121,19 @@ export function TourOverlay({ step, index, api }: Props) {
       } else {
         if (!scrolled) {
           scrolled = true;
-          bringIntoView(element, window.innerWidth < SHEET_BELOW ? popRef.current?.offsetHeight ?? 280 : 0);
+          // Reserve room under the target for the coachmark whenever it cannot
+          // sit beside it: always on a phone (bottom sheet), and on a desktop
+          // when the target spans too much of the width.
+          const rect = element.getBoundingClientRect();
+          const popWidth = Math.min(400, window.innerWidth - MARGIN * 2);
+          const sideRoom =
+            rect.left - GAP - popWidth >= MARGIN ||
+            rect.right + GAP + popWidth <= window.innerWidth - MARGIN;
+          const popHeight = popRef.current?.offsetHeight ?? 280;
+          bringIntoView(
+            element,
+            window.innerWidth < SHEET_BELOW || !sideRoom ? popHeight + GAP : 0,
+          );
         }
         const rect = element.getBoundingClientRect();
         const key = `${Math.round(rect.top)}:${Math.round(rect.left)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;

@@ -537,6 +537,13 @@
   font-size: var(--fs-md);
   font-style: italic;
 }
+.specimen__verdict {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+.specimen__verdict strong {
+  color: var(--text);
+}
 .specimen__link {
   display: inline-flex;
   align-items: center;
@@ -969,8 +976,16 @@
     gap: var(--sp-3);
   }
   .landing-top__nav {
-    gap: var(--sp-3);
+    gap: var(--sp-4);
     font-size: var(--fs-sm);
+    white-space: nowrap;
+  }
+  .landing-top__nav .landing-top__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
   }
   .landing .brand__word {
     font-size: 1.05rem;

@@ -701,21 +701,19 @@ input::placeholder {
   transform: translateY(-1px);
 }
 .bcard__name {
-  overflow: hidden;
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.bcard__name--pending {
-  color: var(--text-muted);
-  font-weight: var(--fw-normal);
-  font-style: italic;
+  line-height: 1.3;
 }
 .bcard__job {
-  overflow: hidden;
   color: var(--text-muted);
   font-size: var(--fs-xs);
+  line-height: 1.35;
+}
+.bcard__job--id {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

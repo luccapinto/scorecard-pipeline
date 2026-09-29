@@ -314,6 +314,17 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
   }
+  .masthead .btn__long {
+    display: none;
+  }
+  .main-nav__link {
+    padding: 0 var(--sp-2);
+    font-size: var(--fs-sm);
+  }
+  .main-nav__link[aria-current='page']::after {
+    left: var(--sp-2);
+    right: var(--sp-2);
+  }
   .page {
     gap: var(--sp-5);
   }

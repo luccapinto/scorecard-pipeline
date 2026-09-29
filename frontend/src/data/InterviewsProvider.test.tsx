@@ -32,6 +32,19 @@ function watchFor(pattern: RegExp): { seen: () => boolean; stop: () => void } {
   return { seen: () => seen, stop: () => observer.disconnect() };
 }
 
+/** Interviews in one column of the pipeline board, as the board prints it. */
+function stageCount(stage: string): number {
+  const text = document.querySelector(`.stage--${stage} .stage__count`)?.textContent ?? '';
+  return Number.parseInt(text, 10);
+}
+
+async function openPipeline() {
+  goTo('esteira');
+  render(<App />);
+  await screen.findByRole('heading', { name: 'Da gravação à decisão', level: 1 });
+  await waitFor(() => expect(document.querySelectorAll('.bcard').length).toBeGreaterThan(0));
+}
+
 beforeEach(() => {
   // Demo mode makes no requests; a spy here keeps an accidental one loud.
   vi.stubGlobal(
@@ -47,19 +60,13 @@ afterEach(() => {
 });
 
 describe('InterviewsProvider dataset identity', () => {
-  it('does not flash the list back to a skeleton on a demo action', async () => {
+  it('does not flash the board back to a skeleton on a demo action', async () => {
     const user = userEvent.setup();
-    goTo('entrevistas');
-    render(<App />);
+    await openPipeline();
 
-    await screen.findByRole('heading', { name: 'Entrevistas', level: 1 });
-    await waitFor(() => expect(screen.getAllByRole('listitem').length).toBeGreaterThan(0));
-
-    const skeleton = watchFor(/Carregando entrevistas/);
-    await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
-    await waitFor(() => {
-      expect(screen.getAllByRole('listitem').length).toBeGreaterThan(0);
-    });
+    const skeleton = watchFor(/Carregando a esteira/);
+    await user.click(screen.getByRole('button', { name: /Simular nova entrevista/i }));
+    await waitFor(() => expect(document.querySelector('.bcard--fresh')).not.toBeNull());
     skeleton.stop();
 
     expect(skeleton.seen()).toBe(false);
@@ -67,94 +74,49 @@ describe('InterviewsProvider dataset identity', () => {
 
   it('refetches the shared list on a demo action instead of freezing', async () => {
     const user = userEvent.setup();
-    goTo('entrevistas');
-    render(<App />);
+    await openPipeline();
+    expect(stageCount('recebida')).toBe(1);
 
-    // Anchored on the row's href, not on a candidate name: the only rows that
-    // can advance are the ones still in a processing stage, and those have no
-    // scorecard yet — so they have no name to match on (the name is produced
-    // by the scoring step). Picking a named row instead would silently stop
-    // exercising the revision signal, because named rows cannot advance.
-    const row = () =>
-      document.querySelector('a[href*="demo-fabio-simulado"]')?.closest('.row') ?? null;
-
-    // The stage tiles read the same projection, so they prove the provider
-    // refetched; the row proves the memoised list item actually re-rendered
-    // with it. Both matter: a broken memo would freeze the row alone.
-    const tileCount = (label: string) =>
-      screen
-        .getByText(label, { selector: '.tile__label' })
-        .closest('.tile')
-        ?.querySelector('.tile__count')?.textContent;
-
-    await waitFor(() => {
-      expect(row()).toHaveTextContent('Recebida');
-      expect(tileCount('Recebida')).toBe('1');
-    });
-
-    // One step carries the single `recebida` interview into `transcrevendo`.
-    await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
-
-    await waitFor(() => {
-      expect(row()).toHaveTextContent('Transcrevendo');
-      expect(tileCount('Recebida')).toBe('0');
-    });
+    // A new recording arrives: the first column must grow at once, which only
+    // happens if the provider re-read the dataset after the local mutation.
+    await user.click(screen.getByRole('button', { name: /Simular nova entrevista/i }));
+    await waitFor(() => expect(stageCount('recebida')).toBe(2));
+    expect(document.querySelector('.stage--recebida .bcard--fresh')).not.toBeNull();
   });
 
-  it('announces a status change produced by advancing the pipeline', async () => {
+  it('announces a status change produced by the simulation', async () => {
     const user = userEvent.setup();
-    goTo('entrevistas');
-    render(<App />);
+    await openPipeline();
 
-    await waitFor(() => expect(screen.getAllByRole('listitem').length).toBeGreaterThan(0));
+    await user.click(screen.getByRole('button', { name: /Simular nova entrevista/i }));
 
-    await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
-
-    // The polite live region must carry the transition. Clearing the status
-    // history on every action silently disabled this.
-    await waitFor(() => {
-      const live = document.querySelector('[role="status"][aria-live="polite"]');
-      expect(live?.textContent ?? '').toMatch(/Status atualizado|mudaram de status/);
-    });
+    // The polite live region must carry the transition when the simulated
+    // interview leaves `recebida`. Clearing the status history on every
+    // action silently disabled this.
+    await waitFor(
+      () => {
+        const live = document.querySelector('[role="status"][aria-live="polite"]');
+        expect(live?.textContent ?? '').toMatch(/Status atualizado|mudaram de status/);
+      },
+      { timeout: 5000 },
+    );
   });
 
   it('reloads and restores the seeded scenario when the demo is reset', async () => {
     const user = userEvent.setup();
-    goTo('entrevistas/demo-fabio-simulado');
-    render(<App />);
+    await openPipeline();
 
-    // Seeded at `recebida`.
-    await screen.findByText('Recebida');
-    await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
-    await waitFor(() => expect(screen.getByText('Transcrevendo')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /Simular nova entrevista/i }));
+    await waitFor(() => expect(stageCount('recebida')).toBe(2));
 
-    // Reset replaces the scenario, so the list must actually go back — this
+    // Reset replaces the scenario, so the board must actually go back — this
     // is the path that silently did nothing when reset reused the same
     // dataset identity and a revision watermark of zero.
+    await user.click(screen.getByRole('button', { name: /Opções de exibição/i }));
     await user.click(screen.getByRole('button', { name: /Reiniciar demonstração/i }));
 
-    await waitFor(() => {
-      expect(screen.getByText('Recebida')).toBeInTheDocument();
-    });
-    expect(screen.queryByText('Transcrevendo')).not.toBeInTheDocument();
-  });
-
-  it('resets the step counter along with the scenario', async () => {
-    const user = userEvent.setup();
-    goTo('esteira');
-    render(<App />);
-
-    await screen.findByRole('heading', { name: 'Esteira', level: 1 });
-    await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
-    // Scoped to the toolbar: the dashboard is full of standalone counters.
-    await waitFor(() => {
-      expect(document.querySelector('.demo-toolbar__step')?.textContent).toContain('1');
-    });
-
-    await user.click(screen.getByRole('button', { name: /Reiniciar demonstração/i }));
-    await waitFor(() => {
-      const step = document.querySelector('.demo-toolbar__step');
-      expect(step?.textContent).toContain('0');
-    });
+    await waitFor(() => expect(stageCount('recebida')).toBe(1));
+    expect(document.querySelector('.bcard--fresh')).toBeNull();
+    expect(screen.getByRole('button', { name: /Simular nova entrevista/i })).toBeEnabled();
   });
 });

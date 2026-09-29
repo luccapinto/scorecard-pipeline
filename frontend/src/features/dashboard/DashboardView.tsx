@@ -161,7 +161,7 @@ export function DashboardView({ route }: Props) {
                 valueHeader="Avaliações"
                 unit=" avaliações"
                 data={metrics.scoreDistribution.map((count, index) => ({
-                  label: String(index + 1),
+                  label: `nota ${index + 1}`,
                   value: count,
                   color: `var(--chart-${index + 1})`,
                   description: `Nota ${index + 1}`,

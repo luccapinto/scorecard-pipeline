@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type { Scorecard as ScorecardData } from '../../api/types';
 import type { CompetencyReference } from '../../data/source';
@@ -14,20 +14,22 @@ const TRANSCRIPT =
   'Entrevistadora: como você começa? Candidata: eu costumo desenhar o fluxo antes de ' +
   'escrever qualquer código, e gosto de revisar PRs dos colegas antes do merge.';
 
+/** What the detail view passes: a real link per competency. */
+const quoteHref = (index: number) => `#/demo/entrevistas/int-1?citacao=${index}`;
+
 function renderScorecard(
   scorecard: ScorecardData = syntheticScorecard,
-  options: { transcript?: string | null; onLocate?: () => void } = {},
+  options: { transcript?: string | null } = {},
 ) {
-  const onLocate = options.onLocate ?? vi.fn();
-  const view = renderWithSource(
+  return renderWithSource(
     <Scorecard
       scorecard={scorecard}
       jobId="python_pleno"
       transcript={options.transcript === undefined ? TRANSCRIPT : options.transcript}
-      onLocateQuote={onLocate}
+      quoteHref={quoteHref}
+      activeQuote={null}
     />,
   );
-  return { ...view, onLocate };
 }
 
 describe('Scorecard', () => {
@@ -80,16 +82,19 @@ describe('Scorecard', () => {
     expect(card.querySelector('.evidence--alert')).toBeNull();
   });
 
-  it('links a verified quote to its position in the transcript', async () => {
-    const user = userEvent.setup();
-    const { onLocate } = renderScorecard();
+  it('links a verified quote to its position in the transcript', () => {
+    renderScorecard();
     const card = screen
       .getByRole('heading', { name: 'Comunicação' })
       .closest('.competency') as HTMLElement;
+    const index = syntheticScorecard.evaluations.findIndex(
+      (item) => item.competency_name === 'Comunicação',
+    );
 
-    await user.click(within(card).getByRole('button', { name: /Ver na transcrição/i }));
-    expect(onLocate).toHaveBeenCalledWith(
-      'eu costumo desenhar o fluxo antes de escrever qualquer código',
+    // A real link: shareable, and the transcript highlight follows the URL.
+    expect(within(card).getByRole('link', { name: /Ver na transcrição/i })).toHaveAttribute(
+      'href',
+      quoteHref(index),
     );
   });
 
@@ -103,7 +108,7 @@ describe('Scorecard', () => {
 
   it('does not offer to locate a quote when there is no transcript', () => {
     renderScorecard(syntheticScorecard, { transcript: null });
-    expect(screen.queryByRole('button', { name: /Ver na transcrição/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Ver na transcrição/i })).not.toBeInTheDocument();
   });
 
   it('declares the BARS gap when the source cannot resolve anchors', () => {
@@ -144,7 +149,8 @@ describe('Scorecard', () => {
         scorecard={syntheticScorecard}
         jobId="python_pleno"
         transcript={TRANSCRIPT}
-        onLocateQuote={vi.fn()}
+        quoteHref={quoteHref}
+        activeQuote={null}
       />,
       source,
     );

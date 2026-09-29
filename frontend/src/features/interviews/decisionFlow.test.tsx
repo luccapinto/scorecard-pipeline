@@ -41,7 +41,7 @@ function renderDetail(source: DataSource) {
     <AnnouncerProvider>
       <DataSourceProvider value={source}>
         <InterviewsProvider activeIntervalMs={5000}>
-          <InterviewDetailView id="int-1" />
+          <InterviewDetailView route={{ mode: 'api', name: 'interview', id: 'int-1' }} id="int-1" />
         </InterviewsProvider>
       </DataSourceProvider>
     </AnnouncerProvider>,

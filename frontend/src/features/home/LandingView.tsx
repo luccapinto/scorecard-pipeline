@@ -71,6 +71,7 @@ const ENGINEERING: { term: string; detail: string }[] = [
 interface Specimen {
   candidate: string;
   competency: string;
+  recommendation: string;
   score: number;
   quote: string;
   nearest: string | null;
@@ -89,6 +90,7 @@ function specimenFrom(interview: Interview): Specimen | null {
   return {
     candidate: interview.scorecard.candidate_name,
     competency: evaluation.competency_name,
+    recommendation: interview.scorecard.overall_recommendation,
     score: evaluation.score,
     quote: evaluation.evidence_quote,
     nearest: passage === null ? null : transcript.slice(passage.match.start, passage.match.end),
@@ -148,7 +150,7 @@ export function LandingView({ route, theme, onThemeChange }: Props) {
             <a href={at('dashboard')}>Abrir a demo</a>
             <a href={REPO_URL} target="_blank" rel="noreferrer noopener">
               <Icon name="github" />
-              GitHub
+              <span className="landing-top__label">GitHub</span>
               <span className="sr-only"> (abre em nova aba)</span>
             </a>
           </nav>
@@ -227,6 +229,10 @@ export function LandingView({ route, theme, onThemeChange }: Props) {
                     <q>{example.specimen.nearest}</q>
                   </p>
                 )}
+                <p className="specimen__verdict">
+                  Mesmo assim, o modelo recomendou: <strong>{example.specimen.recommendation}</strong>.
+                  O sistema segura a decisão para uma pessoa.
+                </p>
                 <a className="specimen__link" href={at('interview', EXAMPLE_ID)}>
                   Ver este scorecard na demo
                   <Icon name="arrowRight" />
