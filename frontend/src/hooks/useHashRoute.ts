@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import type { Route } from '../app/routes';
 import { documentTitle, parseHash, routeToHash } from '../app/routes';
@@ -37,6 +37,22 @@ export function useHashRoute(): Route {
   useEffect(() => {
     document.title = documentTitle(route);
   }, [route]);
+
+  // A different page opens at its top, as a page load would. Hash navigation
+  // keeps the document's scroll offset, so without this a page inherited the
+  // previous one's: "Por dentro" clicked from the bottom of a scorecard opened
+  // with its heading far above the viewport. Only the page counts — a
+  // highlighted citation or a tour step within it keeps the reader in place.
+  // A layout effect, so the new page never paints at the old offset; and an
+  // instant jump, since `html { scroll-behavior: smooth }` would otherwise
+  // glide the new page up from where the old one was.
+  const page = route.id === undefined ? route.name : `${route.name}/${route.id}`;
+  const shownPage = useRef(page);
+  useLayoutEffect(() => {
+    if (shownPage.current === page) return;
+    shownPage.current = page;
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [page]);
 
   return route;
 }
