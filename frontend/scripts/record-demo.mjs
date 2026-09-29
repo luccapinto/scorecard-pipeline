@@ -268,12 +268,13 @@ await aim(page.locator('.states__stop'), 700);
 await d.hold(2100);
 
 // ── 9 · Outro ───────────────────────────────────────────────────────
-// The card is on screen for ~4 s: this wait plus the fade-in and the fraction
-// of a second the screencast adds on stop (measured on take 5: 1.3 s → 1.9 s).
-await d.caption('', '');
+// The card is on screen ≈ 2 × this wait − 0.7 s: the director's concat list
+// repeats the last frame, and ffmpeg honours its duration both times, so the
+// wait after the fade-in plays twice (takes 5 and 8: 1.3 s → 1.9 s, 3.4 s →
+// 6.0 s). 2350 ms lands the ~4 s the storyboard asks for.
 await d.card(
   `<h1>Scorecard Pipeline</h1><p>FastAPI · Redis + RQ · PostgreSQL · Deepgram ou WhisperX<br>OpenRouter · React 19 + TypeScript</p><small>github.com/luccapinto/scorecard-pipeline · luccapinto.github.io/scorecard-pipeline</small>`,
-  3400,
+  2350,
 );
 
 await d.finish(OUT);
