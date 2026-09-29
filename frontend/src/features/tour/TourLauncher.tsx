@@ -16,14 +16,18 @@ export function TourLauncher() {
       <Icon name="play" />
       {resuming ? (
         <>
-          Retomar<span className="btn__long"> tour</span>
+          <span>
+            Retomar<span className="btn__long"> tour</span>
+          </span>
           <span className="btn__meta">
             {tour.resumable! + 1}/{tour.total}
           </span>
         </>
       ) : (
         <>
-          Tour<span className="btn__long"> guiado</span>
+          <span>
+            Tour<span className="btn__long"> guiado</span>
+          </span>
           <span className="btn__meta btn__long">2 min</span>
         </>
       )}

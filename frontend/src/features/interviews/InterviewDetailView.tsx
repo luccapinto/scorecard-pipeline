@@ -153,7 +153,10 @@ export function InterviewDetailView({ route, id }: Props) {
           {formatRelative(interview.created_at, source.now())}
         </p>
         <div className="page-head__title">
-          <h1>{interview.scorecard?.candidate_name ?? 'Entrevista sem scorecard ainda'}</h1>
+          <h1>
+            {interview.scorecard?.candidate_name ??
+              (meta.category === 'processing' ? 'Entrevista em processamento' : 'Entrevista sem scorecard')}
+          </h1>
           <StatusBadge status={interview.status} />
         </div>
         <p className="page-head__lede">{meta.description}</p>
@@ -259,7 +262,7 @@ export function InterviewDetailView({ route, id }: Props) {
         </div>
 
         <aside className="detail__side" aria-labelledby="transcricao-title">
-          <section className="transcript-panel" data-tour="transcript">
+          <section className="transcript-panel">
             <h2 id="transcricao-title">Transcrição</h2>
             <p className="transcript-panel__lede">
               O que foi dito de fato. É aqui que cada citação do modelo é procurada.

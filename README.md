@@ -199,6 +199,8 @@ We document the project's main technical choices in detail through Architecture 
 2. **[ADR 0002 — Deterministic Lookup vs. RAG](docs/adr/0002-lookup-deterministico-vs-rag.md):** Why we chose lookup of local job files over vector-based semantic search for prompt assembly.
 3. **[ADR 0003 — Simple Queue (RQ) vs. Celery](docs/adr/0003-rq-vs-celery.md):** Balancing complexity and robustness with RQ.
 4. **[ADR 0004 — Bias Risk in Culture Assessment](docs/adr/0004-avaliacao-cultura-fit-bias.md):** Ethical mitigations based on BARS anchors, mandatory literal evidence and mandated human validation.
+5. **[ADR 0005 — Two UI modes, never mixed](docs/adr/0005-dois-modos-api-e-demonstracao.md):** API mode shows only what the backend really has and declares every gap; demo mode stages the rest with a synthetic dataset and zero network requests.
+6. **[ADR 0006 — A public demo without API mode](docs/adr/0006-build-showcase-sem-modo-api.md):** The GitHub Pages build compiles API mode out entirely, and ships a landing page and a guided tour for people who will never run the backend.
 
 There is also a full architecture review in [docs/reviews/](docs/reviews/).
 

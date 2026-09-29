@@ -1108,11 +1108,23 @@ input::placeholder {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.row__candidate--pending {
+  color: var(--text-muted);
+  font-style: italic;
+}
 .row__sub {
   display: flex;
-  gap: var(--sp-2);
+  flex-wrap: wrap;
+  gap: 0 var(--sp-2);
+  min-width: 0;
   font-size: var(--fs-xs);
   color: var(--text-muted);
+}
+.row__id {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .row__signals {
   display: flex;

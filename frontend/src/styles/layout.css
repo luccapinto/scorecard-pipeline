@@ -154,10 +154,9 @@
   flex: 1 1 36rem;
   min-width: 0;
 }
+/* Block, not flex: the eyebrow mixes text and inline pieces ("vaga · gravada
+   há 3 h"), and flex would turn each run into its own column on a phone. */
 .page-head__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
   color: var(--text-muted);
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
@@ -166,8 +165,11 @@
 }
 .page-head__eyebrow::before {
   content: '';
+  display: inline-block;
   width: 1.5rem;
   height: 1px;
+  margin-right: var(--sp-2);
+  vertical-align: middle;
   background: currentColor;
 }
 .page-head__title {

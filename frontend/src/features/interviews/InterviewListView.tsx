@@ -183,12 +183,14 @@ const InterviewRow = memo(function InterviewRow({ summary, route, now, jobTitle 
         })}
       >
         <span className="row__main">
-          <span className="row__candidate">
-            {summary.candidateName ?? <span className="muted">Nome vem do scorecard</span>}
+          {/* Before scoring there is no name — it comes out of the scorecard —
+              so the job carries the row and the id tells rows apart. */}
+          <span className={`row__candidate ${summary.candidateName === null ? 'row__candidate--pending' : ''}`}>
+            {summary.candidateName ?? jobTitle ?? 'Sem vaga'}
           </span>
           <span className="row__sub">
-            <span className="row__job">{jobTitle ?? 'Sem vaga'}</span>
-            <span className="row__id mono">{shortId(summary.id)}</span>
+            {summary.candidateName !== null && <span className="row__job">{jobTitle ?? 'Sem vaga'}</span>}
+            <span className="row__id mono">{summary.candidateName === null ? summary.id : shortId(summary.id)}</span>
           </span>
         </span>
 

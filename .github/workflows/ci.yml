@@ -207,7 +207,7 @@ jobs:
             done
           done
           npm run check:a11y
-          PREVIEW_URL=http://localhost:4174 npm run check:a11y
+          EDITION=showcase PREVIEW_URL=http://localhost:4174 npm run check:a11y
 
   docker:
     name: Docker build

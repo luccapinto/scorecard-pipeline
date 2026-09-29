@@ -77,7 +77,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'transcricao',
     title: 'Evidência que dá para conferir',
     body: 'Uma citação verificada leva direto ao trecho da transcrição, marcado. Quem revisa não precisa acreditar no modelo: confere com os próprios olhos, em um clique.',
-    target: '[data-tour="transcript"]',
+    // The marked passage itself, not the whole panel: on a phone the panel is
+    // taller than the screen and the coachmark would cover the highlight.
+    target: '.turn--highlight',
     // Competency 0 is never the fabricated one in any simulation script.
     route: (id) => ({ ...interview(id), quote: 0 }),
     requires: 'processed',

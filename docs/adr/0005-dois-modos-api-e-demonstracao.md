@@ -2,7 +2,10 @@
 
 ## Status
 
-Aprovado
+Aprovado. Revisado em parte pelo [ADR 0006](0006-build-showcase-sem-modo-api.md):
+a demo pública passou a ser um build sem modo API, o banner de demonstração
+virou uma marca persistente no cabeçalho, e "Avançar esteira" deu lugar a
+"Simular nova entrevista" — sem mudar as invariantes abaixo.
 
 ## Contexto
 
