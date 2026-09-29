@@ -9,13 +9,13 @@
 html,
 body,
 #root {
-  height: 100%;
+  min-height: 100%;
 }
 
 html {
-  /* The hash router scrolls to anchors (quote -> transcript turn); without
-     scroll-padding the target lands under the sticky top bar. */
-  scroll-padding-top: calc(var(--topbar-h) + var(--sp-4));
+  /* Quote -> transcript jumps land below the sticky masthead, not under it. */
+  scroll-padding-top: calc(var(--masthead-h) + var(--sp-4));
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -25,7 +25,9 @@ body {
   font-family: var(--font-sans);
   font-size: var(--fs-base);
   line-height: var(--lh-normal);
+  font-feature-settings: 'ss01' on;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
@@ -36,21 +38,33 @@ h4 {
   margin: 0;
   line-height: var(--lh-tight);
   font-weight: var(--fw-semibold);
-  letter-spacing: -0.011em;
+  text-wrap: balance;
+}
+
+/* Headlines are set in the serif: the product is about what was SAID, and the
+   editorial face is what makes a screen read as a document under review
+   rather than as a control panel. */
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.012em;
 }
 
 h1 {
-  font-size: var(--fs-2xl);
+  font-size: var(--fs-4xl);
 }
 h2 {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-2xl);
 }
 h3 {
   font-size: var(--fs-md);
+  letter-spacing: -0.005em;
 }
 
 p {
   margin: 0;
+  text-wrap: pretty;
 }
 
 ul,
@@ -62,22 +76,39 @@ ol {
 
 a {
   color: var(--accent);
-  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
 }
 a:hover {
   color: var(--accent-hover);
+  text-decoration-thickness: 2px;
 }
 
 code,
 pre,
+kbd,
 .mono {
   font-family: var(--font-mono);
-  font-size: 0.92em;
+  font-size: 0.86em;
   font-variant-ligatures: none;
 }
 
 pre {
   margin: 0;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 0.35em;
+  border: var(--border-w) solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  line-height: 1.6;
+  text-align: center;
 }
 
 button,
@@ -86,6 +117,11 @@ select,
 textarea {
   font: inherit;
   color: inherit;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 /* Visible keyboard focus on everything. This is a decision interface: a user
@@ -121,7 +157,7 @@ textarea {
   top: var(--sp-3);
   z-index: var(--z-toast);
   padding: var(--sp-2) var(--sp-4);
-  background: var(--accent);
+  background: var(--ink);
   color: var(--text-inverse);
   border-radius: var(--radius-sm);
   font-weight: var(--fw-semibold);
@@ -148,6 +184,11 @@ hr {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
 

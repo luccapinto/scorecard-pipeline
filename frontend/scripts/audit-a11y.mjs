@@ -16,7 +16,10 @@
 import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 
-import { BASE_URL, ROUTES, urlFor } from './routes.mjs';
+import { BASE_URL, EDITION, ROUTES, TOUR_ROUTES, urlFor } from './routes.mjs';
+
+// Every screen and every guided-tour step: a coachmark is UI too.
+const TARGETS = [...ROUTES, ...TOUR_ROUTES];
 
 const THEMES = ['light', 'dark'];
 
@@ -31,7 +34,7 @@ let violationCount = 0;
 const summary = [];
 
 for (const theme of THEMES) {
-  for (const route of ROUTES) {
+  for (const route of TARGETS) {
     await page.goto(urlFor(route), { waitUntil: 'domcontentloaded' });
     // The theme lives on <html data-theme>, written by usePreferences from
     // localStorage; set the preference and reload so the app owns the value
@@ -39,7 +42,7 @@ for (const theme of THEMES) {
     await page.evaluate((value) => {
       localStorage.setItem(
         'scorecard-pipeline.prefs',
-        JSON.stringify({ theme: value, pollIntervalMs: 5000, lastMode: 'demo' }),
+        JSON.stringify({ theme: value, pollIntervalMs: 5000 }),
       );
     }, theme);
     await page.reload({ waitUntil: 'domcontentloaded' });
@@ -74,7 +77,7 @@ await browser.close();
 
 for (const line of summary) console.log(line);
 
-const checked = THEMES.length * ROUTES.length;
+const checked = THEMES.length * TARGETS.length;
 if (violationCount > 0) {
   console.error(
     `\nAccessibility audit FAILED: ${violationCount} violation(s) across ${checked} page/theme combinations.`,
@@ -82,5 +85,5 @@ if (violationCount > 0) {
   process.exit(1);
 }
 console.log(
-  `\nAccessibility audit passed: ${checked} page/theme combinations, 0 violations (${TAGS.join(', ')}) at ${BASE_URL}.`,
+  `\nAccessibility audit passed: ${checked} page/theme combinations (${ROUTES.length} screens + ${TOUR_ROUTES.length} tour steps, ${EDITION} build), 0 violations (${TAGS.join(', ')}) at ${BASE_URL}.`,
 );

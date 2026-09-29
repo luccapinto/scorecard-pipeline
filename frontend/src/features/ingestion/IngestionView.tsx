@@ -2,13 +2,16 @@ import { useCallback, useEffect, useId, useState } from 'react';
 
 import { AuthError, errorMessage } from '../../api/errors';
 import type { CreateInterviewResponse, Job, Recording } from '../../api/types';
+import { SHOWCASE } from '../../app/edition';
 import type { Route } from '../../app/routes';
 import { ErrorState } from '../../components/ErrorState';
 import { Icon } from '../../components/ui/Icon';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { SkeletonRows } from '../../components/ui/Skeleton';
 import { useInterviews } from '../../data/InterviewsProvider';
 import { useDataSource } from '../../data/source';
 import { hrefFor } from '../../hooks/useHashRoute';
+import { InsideNav } from '../inside/InsideNav';
 import { WebhookInspector } from './WebhookInspector';
 
 interface Props {
@@ -75,8 +78,9 @@ export function IngestionView({ route }: Props) {
         // The webhook is guarded by HMAC, not by X-API-Key. A browser cannot
         // sign without holding WEBHOOK_HMAC_SECRET, and putting that secret in
         // the bundle would publish it — so a 401 here is an expected outcome
-        // to explain, never a failure to retry.
-        if (cause instanceof AuthError) setSubmit({ kind: 'hmac' });
+        // to explain, never a failure to retry. Only a real API can answer
+        // 401, so the showcase compiles this branch out.
+        if (!SHOWCASE && cause instanceof AuthError) setSubmit({ kind: 'hmac' });
         else setSubmit({ kind: 'error', message: errorMessage(cause) });
       });
   };
@@ -90,16 +94,19 @@ export function IngestionView({ route }: Props) {
   }
 
   return (
-    <div className="ingestion">
-      <div className="view-head">
-        <div className="view-head__text">
-          <h1>Nova entrevista</h1>
-          <p className="view-head__sub">
-            Dispara o mesmo webhook de ingestão que o sistema de gravação usa. A API responde{' '}
-            <strong>202 Accepted</strong>: aceite do pedido, não conclusão do processamento.
-          </p>
-        </div>
-      </div>
+    <div className="page ingestion">
+      <InsideNav route={route} />
+      <PageHeader
+        eyebrow="Por dentro · ingestão"
+        title="Como uma gravação entra na esteira"
+        lede={
+          <>
+            O mesmo webhook que o sistema de gravação chama, com o pedido exato que vai pela rede.
+            A API responde <strong>202 Accepted</strong>: aceite do pedido, não conclusão do
+            processamento.
+          </>
+        }
+      />
 
       {submit.kind === 'hmac' && (
         <section className="card banner-card banner-card--warn" role="alert">

@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import type { RouteName } from '../app/routes';
 import { ROUTE_TITLES, routeToHash } from '../app/routes';
+import { TOUR_STEPS } from '../features/tour/steps';
 import { DEMO_INTERVIEW_COUNT } from './dataset';
 
 /** Every way a browser can reach the network from application code. */
@@ -108,17 +109,22 @@ describe('demo mode isolation', () => {
     // Guards the guard: if someone adds a RouteName and this list is derived
     // correctly, the count moves with it.
     expect(EVERY_ROUTE.length).toBe(Object.keys(ROUTE_TITLES).length);
-    expect(EVERY_ROUTE.map((route) => route.name)).toContain('approvals');
+    expect(EVERY_ROUTE.map((route) => route.name)).toEqual(
+      expect.arrayContaining(['approvals', 'home', 'inside']),
+    );
   });
 
-  it('renders the whole dashboard without touching the network', async () => {
+  it('renders the whole pipeline without touching the network', async () => {
     goTo('esteira');
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Esteira', level: 1 })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Da gravação à decisão', level: 1 }),
+    ).toBeInTheDocument();
     // The synthetic dataset is actually present, so this is not passing by
-    // virtue of rendering nothing.
-    expect(await screen.findByText(/Modo demonstração/i)).toBeInTheDocument();
+    // virtue of rendering nothing — and it is labelled as fictitious.
+    expect((await screen.findAllByText('Bruno Exemplo')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Dados fictícios')).toBeInTheDocument();
     expect(network.calls()).toBe(0);
   });
 
@@ -126,7 +132,7 @@ describe('demo mode isolation', () => {
     goTo('entrevistas');
     render(<App />);
 
-    await screen.findByRole('heading', { name: 'Entrevistas', level: 1 });
+    await screen.findByRole('heading', { name: 'Todas as entrevistas', level: 1 });
     await waitFor(() => {
       expect(screen.getByText(new RegExp(`de ${DEMO_INTERVIEW_COUNT}`))).toBeInTheDocument();
     });
@@ -151,19 +157,41 @@ describe('demo mode isolation', () => {
     expect(network.calls()).toBe(0);
   });
 
-  it('advances the pipeline offline, and actually moves an interview a stage', async () => {
+  it('simulates a new interview offline and walks it to a human decision', async () => {
     const user = userEvent.setup();
-    goTo('entrevistas/demo-fabio-simulado');
-    render(<App />);
+    // Reduced motion shortens the walk between stages; the path is the same.
+    const matchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      ...matchMedia(query),
+      matches: query.includes('prefers-reduced-motion'),
+    })) as typeof window.matchMedia;
 
-    // Seeded at `recebida`; one clock step must carry it to `transcrevendo`.
-    await screen.findByText('Recebida');
-    await user.click(screen.getByRole('button', { name: /Avançar esteira/i }));
+    try {
+      goTo('esteira');
+      render(<App />);
+      await screen.findAllByText('Bruno Exemplo');
+      await user.click(screen.getByRole('button', { name: /Simular nova entrevista/i }));
 
-    await waitFor(() => {
-      expect(screen.getByText('Transcrevendo')).toBeInTheDocument();
-    });
-    expect(network.calls()).toBe(0);
+      // It arrives in the first column, then stops in front of a person —
+      // never past it: decisions are not something the pipeline takes.
+      await waitFor(() =>
+        expect(document.querySelector('.stage--recebida .bcard--fresh')).not.toBeNull(),
+      );
+      await waitFor(
+        () =>
+          expect(
+            document.querySelector('.stage--aguardando_aprovacao .bcard--fresh'),
+          ).not.toBeNull(),
+        { timeout: 5000 },
+      );
+      // Its scorecard carries the citation the search does not find.
+      expect(screen.getByText(/pronta para revisão/i)).toHaveTextContent(
+        /citação que não está na transcrição/,
+      );
+      expect(network.calls()).toBe(0);
+    } finally {
+      window.matchMedia = matchMedia;
+    }
   });
 
   it('reprocesses a failed interview offline, bumping the retry count', async () => {
@@ -189,7 +217,7 @@ describe('demo mode isolation', () => {
     goTo('nova');
     render(<App />);
 
-    await screen.findByRole('heading', { name: 'Nova entrevista', level: 1 });
+    await screen.findByRole('heading', { name: 'Como uma gravação entra na esteira', level: 1 });
     await user.selectOptions(screen.getByLabelText('Vaga'), 'python_pleno');
     await user.selectOptions(
       screen.getByLabelText('Gravação'),
@@ -209,7 +237,7 @@ describe('demo mode isolation', () => {
     goTo('integracoes');
     render(<App />);
 
-    await screen.findByRole('heading', { name: 'Integrações e mensagens', level: 1 });
+    await screen.findByRole('heading', { name: 'Como o time fica sabendo', level: 1 });
     expect(await screen.findByText(/Avaliação de Entrevista:/)).toBeInTheDocument();
     expect(network.calls()).toBe(0);
   });
@@ -254,5 +282,83 @@ describe('demo mode isolation', () => {
     expect(body).toContain('token=«token-de-uso-único-nunca-exposto-pela-api»');
     // A real token is 43 url-safe chars from secrets.token_urlsafe(32).
     expect(body).not.toMatch(/token=[A-Za-z0-9_-]{20,}/);
+  });
+
+  it('shows a real flagged citation on the landing page, offline', async () => {
+    window.location.hash = `#/demo?t=${ANCHOR}`;
+    render(<App />);
+
+    await screen.findByRole('heading', { level: 1, name: /O sistema confere cada citação/ });
+    // Read from the dataset and searched for real, not a hardcoded mock-up.
+    expect(await screen.findByText('eu fui o arquiteto do data mesh global da companhia')).toBeInTheDocument();
+    expect(screen.getByText(/Não está na transcrição/i)).toBeInTheDocument();
+    expect(network.calls()).toBe(0);
+  });
+
+  it('runs the whole guided tour offline, from the landing page to the last step', async () => {
+    const user = userEvent.setup();
+    window.location.hash = `#/demo?t=${ANCHOR}`;
+    render(<App />);
+
+    await user.click((await screen.findAllByRole('button', { name: /Fazer o tour guiado/i }))[0]);
+
+    for (const [index, step] of TOUR_STEPS.entries()) {
+      const dialog = await screen.findByRole('dialog', { name: step.title });
+      expect(dialog).toHaveTextContent(`${index + 1} de ${TOUR_STEPS.length}`);
+      // The step points at something that is really on the screen.
+      await waitFor(() => expect(document.querySelector(step.target)).not.toBeNull());
+      const last = index === TOUR_STEPS.length - 1;
+      await user.click(
+        within(dialog).getByRole('button', { name: last ? 'Concluir tour' : 'Próximo' }),
+      );
+    }
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(network.calls()).toBe(0);
+  });
+
+  it.each(TOUR_STEPS.map((step, index) => ({ step, number: index + 1 })))(
+    'opens tour step $number directly by URL, with what it talks about already on screen',
+    async ({ step, number }) => {
+      // What screenshots, the accessibility audit and a shared link do: land
+      // on a step cold. The simulated interview must already exist.
+      window.location.hash = routeToHash({
+        ...step.route('demo-runtime-1'),
+        clockAnchor: ANCHOR,
+        tour: number,
+      });
+      render(<App />);
+
+      await screen.findByRole('dialog', { name: step.title });
+      await waitFor(() => expect(document.querySelector(step.target)).not.toBeNull());
+      expect(screen.queryByText(/não existe nesta demonstração/i)).not.toBeInTheDocument();
+      expect(network.calls()).toBe(0);
+    },
+  );
+
+  it('leaves the tour with Esc and offers to resume it where it stopped', async () => {
+    const user = userEvent.setup();
+    window.location.hash = routeToHash({ mode: 'demo', name: 'dashboard', clockAnchor: ANCHOR, tour: 3 });
+    render(<App />);
+
+    await screen.findByRole('dialog', { name: TOUR_STEPS[2].title });
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /Retomar/i }));
+    expect(await screen.findByRole('dialog', { name: TOUR_STEPS[2].title })).toBeInTheDocument();
+    expect(network.calls()).toBe(0);
+  });
+
+  it('moves through the tour with the arrow keys', async () => {
+    const user = userEvent.setup();
+    window.location.hash = routeToHash({ mode: 'demo', name: 'dashboard', clockAnchor: ANCHOR, tour: 1 });
+    render(<App />);
+
+    await screen.findByRole('dialog', { name: TOUR_STEPS[0].title });
+    await user.keyboard('{ArrowRight}');
+    await screen.findByRole('dialog', { name: TOUR_STEPS[1].title });
+    await user.keyboard('{ArrowLeft}');
+    expect(await screen.findByRole('dialog', { name: TOUR_STEPS[0].title })).toBeInTheDocument();
   });
 });

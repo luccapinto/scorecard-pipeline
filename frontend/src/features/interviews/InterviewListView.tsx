@@ -4,6 +4,7 @@ import type { Route } from '../../app/routes';
 import { ErrorState } from '../../components/ErrorState';
 import { StatusBadge } from '../../components/StatusBadge';
 import { Icon } from '../../components/ui/Icon';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { SkeletonRows } from '../../components/ui/Skeleton';
 import { VirtualList } from '../../components/ui/VirtualList';
 import { useInterviews } from '../../data/InterviewsProvider';
@@ -28,7 +29,7 @@ const VIRTUALIZE_ABOVE = 200;
 
 export function InterviewListView({ route }: Props) {
   const source = useDataSource();
-  const { summaries, error, refreshing, reload } = useInterviews();
+  const { summaries, error, refreshing, reload, jobTitles } = useInterviews();
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [query, setQuery] = useState('');
 
@@ -75,31 +76,30 @@ export function InterviewListView({ route }: Props) {
   const now = source.now();
 
   return (
-    <div className="list-view">
-      <div className="view-head">
-        <div className="view-head__text">
-          <div className="view-head__title">
-            <h1>Entrevistas</h1>
-            {refreshing && (
-              <span className="chip chip--muted" role="status">
-                atualizando…
-              </span>
-            )}
-          </div>
-          <p className="view-head__sub">
-            Todas as entrevistas da esteira, com as que precisam de uma pessoa no topo.
-          </p>
-        </div>
-        <div className="view-head__actions">
-          <a
-            className="btn btn--primary"
-            href={hrefFor({ mode: route.mode, name: 'new', clockAnchor: route.clockAnchor })}
-          >
-            <Icon name="plus" />
-            Nova entrevista
-          </a>
-        </div>
-      </div>
+    <div className="page list-view">
+      <PageHeader
+        eyebrow="Entrevistas"
+        title="Todas as entrevistas"
+        lede="Cada linha é uma gravação. As que precisam de uma pessoa sobem para o topo; filtre por etapa ou busque por nome, vaga ou ID."
+        badges={
+          refreshing ? (
+            <span className="chip chip--muted" role="status">
+              atualizando…
+            </span>
+          ) : undefined
+        }
+        actions={
+          source.mode === 'api' ? (
+            <a
+              className="btn btn--primary"
+              href={hrefFor({ mode: route.mode, name: 'new', clockAnchor: route.clockAnchor })}
+            >
+              <Icon name="plus" />
+              Nova entrevista
+            </a>
+          ) : undefined
+        }
+      />
 
       {error !== null && (
         <p className="banner banner--warn" role="alert">
@@ -147,7 +147,13 @@ export function InterviewListView({ route }: Props) {
           aria-label="Lista de entrevistas"
         >
           {(summary) => (
-            <InterviewRow key={summary.id} summary={summary} route={route} now={now} />
+            <InterviewRow
+              key={summary.id}
+              summary={summary}
+              route={route}
+              now={now}
+              jobTitle={summary.jobId === null ? null : (jobTitles[summary.jobId] ?? summary.jobId)}
+            />
           )}
         </VirtualList>
       )}
@@ -159,11 +165,12 @@ interface RowProps {
   summary: InterviewSummary;
   route: Route;
   now: number;
+  jobTitle: string | null;
 }
 
 // Memoised on the projected summary: the projector keeps row identity stable
 // across polls, so an unchanged row does not re-render when the list refreshes.
-const InterviewRow = memo(function InterviewRow({ summary, route, now }: RowProps) {
+const InterviewRow = memo(function InterviewRow({ summary, route, now, jobTitle }: RowProps) {
   return (
     <li className={`row ${summary.needsAction ? 'row--action' : ''}`}>
       <a
@@ -176,12 +183,14 @@ const InterviewRow = memo(function InterviewRow({ summary, route, now }: RowProp
         })}
       >
         <span className="row__main">
-          <span className="row__candidate">
-            {summary.candidateName ?? <span className="muted">Sem scorecard ainda</span>}
+          {/* Before scoring there is no name — it comes out of the scorecard —
+              so the job carries the row and the id tells rows apart. */}
+          <span className={`row__candidate ${summary.candidateName === null ? 'row__candidate--pending' : ''}`}>
+            {summary.candidateName ?? jobTitle ?? 'Sem vaga'}
           </span>
           <span className="row__sub">
-            <span className="row__job">{summary.jobId ?? 'sem vaga'}</span>
-            <span className="row__id mono">{shortId(summary.id)}</span>
+            {summary.candidateName !== null && <span className="row__job">{jobTitle ?? 'Sem vaga'}</span>}
+            <span className="row__id mono">{summary.candidateName === null ? summary.id : shortId(summary.id)}</span>
           </span>
         </span>
 
@@ -189,7 +198,9 @@ const InterviewRow = memo(function InterviewRow({ summary, route, now }: RowProp
           {summary.hasEvidenceAlert && (
             <span className="chip chip--danger">
               <Icon name="alert" />
-              evidência não verificada
+              {summary.evidence.unverified === 1
+                ? '1 citação não encontrada'
+                : `${summary.evidence.unverified} citações não encontradas`}
             </span>
           )}
           {summary.averageScore !== null && (

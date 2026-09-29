@@ -26,10 +26,10 @@ import type {
   DeliveryAttempt,
   FunnelBoard,
 } from '../data/source';
-import { buildFunnelCards, DEMO_FUNNEL_STAGES, runtimeInterviewId } from './dataset';
+import { buildFunnelCards, DEMO_FUNNEL_STAGES, isoFromEpoch, runtimeInterviewId } from './dataset';
 import { DEMO_JOB_PROFILES } from './reference.generated';
 import type { DemoAction, DemoState } from './state';
-import { demoNow } from './state';
+import { demoNow, nextWriteAt } from './state';
 
 // Everything the real API cannot answer, the demo can — which is precisely
 // why it must be unmistakably labelled as synthetic on every screen.
@@ -161,11 +161,15 @@ export function createDemoSource(
         );
       }
 
+      // Read before dispatching: the reducer stamps the row with this same
+      // instant, and `getState` only reflects the dispatch after a render.
+      // Same formatter as the row, so the response reports what was stored.
+      const decidedAt = isoFromEpoch(nextWriteAt(getState()));
       dispatch({ type: 'decide', id, action });
       return Promise.resolve({
         interview_id: id,
         status: action === 'approve' ? 'aprovada' : 'rejeitada',
-        updated_at: new Date(demoNow(getState())).toISOString(),
+        updated_at: decidedAt,
       });
     },
 

@@ -88,6 +88,18 @@ describe('closestPassage', () => {
     expect(transcript.slice(result!.match.start, result!.match.end)).toContain('Airflow');
   });
 
+  it('returns a passage that starts and ends on whole words', () => {
+    // The search window is character-based; the hint a person reads must not
+    // begin with "ckfill" or end mid-word.
+    const transcript =
+      'Airflow há uns cinco anos. Eu escrevo DAGs idempotentes com backfill parametrizado por data, e trato falha parcial com retry exponencial.';
+    const result = closestPassage('eu fui o arquiteto do data mesh global da companhia', transcript);
+    expect(result).not.toBeNull();
+    const { start, end } = result!.match;
+    expect(start === 0 || !/[\p{L}\p{N}]/u.test(transcript[start - 1])).toBe(true);
+    expect(end === transcript.length || !/[\p{L}\p{N}]/u.test(transcript[end])).toBe(true);
+  });
+
   it('returns null when there is no transcript to search', () => {
     expect(closestPassage('qualquer coisa', '')).toBeNull();
   });

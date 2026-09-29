@@ -4,6 +4,7 @@
 # cover frontend/dist/; this file does.)
 node_modules/
 dist/
+dist-showcase/
 
 # Test/coverage artifacts
 coverage/

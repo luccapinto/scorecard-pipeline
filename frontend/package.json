@@ -8,17 +8,23 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build:showcase": "tsc -p tsconfig.json --noEmit && vite build --mode showcase",
     "preview": "vite preview",
+    "preview:showcase": "vite preview --mode showcase",
     "test": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:contrast": "node scripts/check-contrast.mjs",
     "check:size": "node scripts/check-bundle-size.mjs",
+    "check:showcase": "node scripts/check-showcase-bundle.mjs",
     "check:a11y": "node scripts/audit-a11y.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "demo-video": "node scripts/record-demo.mjs",
     "build:demo-reference": "node scripts/build-demo-reference.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

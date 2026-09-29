@@ -4,16 +4,12 @@
 // (the API key) and is the thing a user may need to clear; preferences are
 // harmless and should survive that. Nothing here is baked into the bundle.
 
-import type { AppMode } from '../app/routes';
-
 export type ThemePreference = 'light' | 'dark' | 'system';
 
 export interface Preferences {
   theme: ThemePreference;
   /** Poll interval used while a pipeline is actively moving, in ms. */
   pollIntervalMs: number;
-  /** Mode used when the URL carries no mode prefix (a bare `#/`). */
-  lastMode: AppMode;
 }
 
 export const PREFERENCES_KEY = 'scorecard-pipeline.prefs';
@@ -21,7 +17,6 @@ export const PREFERENCES_KEY = 'scorecard-pipeline.prefs';
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: 'system',
   pollIntervalMs: 5000,
-  lastMode: 'api',
 };
 
 /** Poll intervals offered in the UI. Below 2s the API would be hammered. */
@@ -47,8 +42,7 @@ export function parsePreferences(raw: string | null): Preferences {
       typeof parsed.pollIntervalMs === 'number' && Number.isFinite(parsed.pollIntervalMs)
         ? Math.min(MAX_POLL_MS, Math.max(MIN_POLL_MS, parsed.pollIntervalMs))
         : DEFAULT_PREFERENCES.pollIntervalMs;
-    const lastMode: AppMode = parsed.lastMode === 'demo' ? 'demo' : 'api';
-    return { theme, pollIntervalMs: interval, lastMode };
+    return { theme, pollIntervalMs: interval };
   } catch {
     return { ...DEFAULT_PREFERENCES };
   }

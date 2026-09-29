@@ -1,11 +1,11 @@
 name: Deploy demo to GitHub Pages
 
-# Publishes the SPA so the demonstration mode can be tried without cloning
-# anything. This is safe to host publicly because demo mode performs zero
-# network I/O and ships no credentials: it is a static bundle with a synthetic
-# dataset baked in. API mode is still present on the deployed build, but it
-# points at whatever backend the visitor configures, which by default is
-# localhost — so a public visitor simply sees the demo.
+# Publishes the SHOWCASE build: the demonstration only — landing page, guided
+# tour, synthetic dataset — for people who will never run the backend. API
+# mode is not hidden in this bundle, it is absent: `vite build --mode
+# showcase` compiles it out, and `check:showcase` fails the deploy if any
+# API-mode string or network primitive survived (docs/adr/0006). Safe to host
+# publicly: no request leaves the page and there is no credential to ship.
 
 on:
   push:
@@ -45,8 +45,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      # The full build is built too, only so the bundle check has a control:
+      # a scan that finds the API strings there proves it can see them.
+      - name: Build (full, as the check's control)
         run: npm run build
+
+      - name: Build the showcase
+        run: npm run build:showcase
+
+      - name: Prove API mode is not in the public bundle
+        run: npm run check:showcase
 
       # vite's `base: './'` makes every asset URL relative, so the same bundle
       # works at the repository subpath Pages serves from without any rewrite.
@@ -58,15 +66,15 @@ jobs:
       # someone requests a PATH that does not exist (a hand-typed
       # `/scorecard-pipeline/entrevistas`, say): GitHub serves the app instead
       # of its generic 404 page, and the app boots with no hash and shows the
-      # dashboard. The HTTP status is still 404, which is correct.
+      # landing page. The HTTP status is still 404, which is correct.
       - name: Serve the app on unknown paths
-        run: cp dist/index.html dist/404.html
+        run: cp dist-showcase/index.html dist-showcase/404.html
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: frontend/dist
+          path: frontend/dist-showcase
 
       - id: deployment
         uses: actions/deploy-pages@v4

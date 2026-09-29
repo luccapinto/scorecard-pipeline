@@ -150,12 +150,25 @@ export function closestPassage(quote: string, transcript: string): ClosestPassag
 
   if (best < 0) return null;
 
-  const start = haystack.map[bestOffset];
-  const endIndex = Math.min(bestOffset + windowSize, haystack.map.length) - 1;
-  return {
-    similarity: Math.round(best),
-    match: { start, end: haystack.map[endIndex] + 1 },
-  };
+  // The window is character-based, so its edges usually cut words in half
+  // ("ckfill parametrizado…"). A hint a person has to read should start and
+  // end on whole words, and should not trail into a sentence it barely
+  // touches — so widen to word boundaries, then drop a short dangling
+  // fragment of the neighbouring sentence on either side.
+  const WORD = /[\p{L}\p{N}]/u;
+  let start = haystack.map[bestOffset];
+  let end = haystack.map[Math.min(bestOffset + windowSize, haystack.map.length) - 1] + 1;
+  while (start > 0 && WORD.test(transcript[start - 1])) start -= 1;
+  while (end < transcript.length && WORD.test(transcript[end])) end += 1;
+
+  const DANGLING = 16;
+  const passage = transcript.slice(start, end);
+  const lastStop = Math.max(passage.lastIndexOf('. '), passage.lastIndexOf('? '));
+  if (lastStop !== -1 && passage.length - lastStop - 2 <= DANGLING) end = start + lastStop + 1;
+  const firstStop = transcript.slice(start, end).search(/[.?!]\s/);
+  if (firstStop !== -1 && firstStop + 1 <= DANGLING) start += firstStop + 2;
+
+  return { similarity: Math.round(best), match: { start, end } };
 }
 
 /**

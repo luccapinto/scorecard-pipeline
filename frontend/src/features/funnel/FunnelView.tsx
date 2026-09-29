@@ -3,10 +3,12 @@ import { useId } from 'react';
 import type { Route } from '../../app/routes';
 import { Gap } from '../../components/ui/Gap';
 import { Icon } from '../../components/ui/Icon';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { useDataSource } from '../../data/source';
 import { hrefFor } from '../../hooks/useHashRoute';
 import { formatDuration, formatScore } from '../../lib/format';
 import type { FunnelCard, FunnelStage } from '../../data/source';
+import { InsideNav } from '../inside/InsideNav';
 
 interface Props {
   route: Route;
@@ -27,12 +29,13 @@ export function FunnelView({ route }: Props) {
 
   if (!source.capabilities.funnelStages || source.funnel === undefined) {
     return (
-      <div className="funnel">
-        <div className="view-head">
-          <div className="view-head__text">
-            <h1>Funil de candidatos</h1>
-          </div>
-        </div>
+      <div className="page funnel">
+        <InsideNav route={route} />
+        <PageHeader
+          eyebrow="Por dentro · encenação"
+          title="Funil de candidatos"
+          lede="Como esta camada de avaliação se encaixaria num processo seletivo."
+        />
         <Gap gap="funnelStages" title="Funil não existe na API" />
       </div>
     );
@@ -42,18 +45,14 @@ export function FunnelView({ route }: Props) {
   const now = source.now();
 
   return (
-    <div className="funnel">
-      <div className="view-head">
-        <div className="view-head__text">
-          <div className="view-head__title">
-            <h1>Funil de candidatos</h1>
-            <span className="pill pill--synthetic">fases sintéticas</span>
-          </div>
-          <p className="view-head__sub">
-            Como esta camada de avaliação se encaixa num processo seletivo.
-          </p>
-        </div>
-      </div>
+    <div className="page funnel">
+      <InsideNav route={route} />
+      <PageHeader
+        eyebrow="Por dentro · encenação"
+        title="Funil de candidatos"
+        badges={<span className="pill pill--synthetic">fases sintéticas</span>}
+        lede="Como esta camada de avaliação se encaixaria num processo seletivo (um ATS). Mova um cartão pelo seletor dele — sem arrastar, para funcionar com qualquer forma de entrada."
+      />
 
       <p className="banner banner--warn">
         <Icon name="alert" />
@@ -65,7 +64,7 @@ export function FunnelView({ route }: Props) {
         </span>
       </p>
 
-      <div className="board">
+      <div className="fboard">
         {board.stages.map((stage) => (
           <Column
             key={stage.id}
@@ -93,19 +92,19 @@ interface ColumnProps {
 
 function Column({ stage, stages, cards, route, now, onMove }: ColumnProps) {
   return (
-    <section className="board__column" aria-labelledby={`fase-${stage.id}`}>
-      <header className="board__head">
-        <h2 id={`fase-${stage.id}`} className="board__title">
+    <section className="fboard__column" aria-labelledby={`fase-${stage.id}`}>
+      <header className="fboard__head">
+        <h2 id={`fase-${stage.id}`} className="fboard__title">
           {stage.label}
-          <span className="board__count">{cards.length}</span>
+          <span className="fboard__count">{cards.length}</span>
         </h2>
-        <p className="board__desc">{stage.description}</p>
+        <p className="fboard__desc">{stage.description}</p>
       </header>
 
       {cards.length === 0 ? (
-        <p className="board__empty">Nenhum candidato nesta fase.</p>
+        <p className="fboard__empty">Nenhum candidato nesta fase.</p>
       ) : (
-        <ul className="board__cards">
+        <ul className="fboard__cards">
           {cards.map((card) => (
             <CandidateCard
               key={card.interviewId}

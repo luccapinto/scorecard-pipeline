@@ -1,11 +1,16 @@
-// Recording machinery for the product demo video: screencast capture, an
-// on-page overlay (cursor, captions, title cards) and the ffmpeg encode.
+// Recording machinery for scripted product demo videos: screencast capture,
+// an on-page overlay (cursor, click ripples, captions, title cards,
+// fast-forward badge, drag ghost) and the ffmpeg encode.
+//
+// Copy this file into the project (e.g. `scripts/demo/director.mjs`) and
+// drive it from a storyboard script. It needs Playwright (Chromium) and
+// ffmpeg on PATH.
 //
 // Frames come from CDP `Page.startScreencast` rather than Playwright's
-// `recordVideo`, because the latter records at CSS-pixel size with a capped
-// VP8 bitrate — UI text comes out soft. Screencast frames are device pixels,
-// so a 1280×720 viewport at scale 2 yields crisp 2560×1440 frames: the layout
-// is that of a 720p screen, with twice the pixel density.
+// `recordVideo`, which records at CSS-pixel size with a capped VP8 bitrate —
+// UI text comes out soft. Screencast frames are device pixels, so a 1280×720
+// viewport at scale 2 yields crisp 2560×1440 frames: the layout of a 720p
+// screen at twice the pixel density.
 
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -24,11 +29,11 @@ const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
 /**
  * Runs in every document. The overlay lives in a *closed* shadow root: the
- * app's global CSS (a `.card` with margins and borders, say) cannot restyle it,
- * and page locators like `getByText` cannot see its captions. The host is
+ * app's global CSS (a `.card` with margins and borders, say) cannot restyle
+ * it, and page locators like `getByText` cannot see its captions. The host is
  * pointer-events:none, so it never intercepts input.
  */
-function overlayInit() {
+function overlayInit(accent) {
   const CSS = `
     .root { position: fixed; inset: 0; font-family: inherit; line-height: normal; letter-spacing: normal;
       text-transform: none; color: #fff; }
@@ -37,27 +42,32 @@ function overlayInit() {
       transform: translate(-100px, -100px); transition: opacity .2s; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
     .card.on ~ .cur { opacity: 0 !important; }
     .ripple { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
-      background: rgba(123,162,255,.5); animation: ripple .5s ease-out forwards; }
+      background: color-mix(in srgb, ${accent} 55%, transparent); animation: ripple .5s ease-out forwards; }
     @keyframes ripple { from { transform: scale(.2); opacity: 1 } to { transform: scale(1.4); opacity: 0 } }
     .cap { position: absolute; left: 50%; bottom: 26px; max-width: 78%; padding: 12px 22px;
       transform: translate(-50%, 12px); opacity: 0; transition: opacity .25s, transform .25s;
-      border-radius: 14px; background: rgba(10,14,26,.86); border: 1px solid rgba(255,255,255,.14);
-      backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(0,0,0,.35); text-align: center; }
+      border-radius: 14px; background: rgba(10,12,20,.86); border: 1px solid rgba(255,255,255,.14);
+      backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(0,0,0,.4); text-align: center; }
     .cap.on { opacity: 1; transform: translate(-50%, 0); }
     .step { display: block; margin-bottom: 3px; font-size: 11px; font-weight: 600;
-      letter-spacing: .12em; text-transform: uppercase; color: #a9c2ff; }
+      letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, ${accent} 60%, #fff); }
     .txt { display: block; font-size: 19px; font-weight: 500; line-height: 1.35; }
+    .ff { position: absolute; top: 18px; right: 18px; padding: 6px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 600; background: ${accent}; opacity: 0; transition: opacity .2s; }
+    .ff.on { opacity: 1; }
     .card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
       justify-content: center; gap: 14px; opacity: 0; transition: opacity .6s; text-align: center;
-      background: radial-gradient(1000px 600px at 50% 40%, rgba(43,82,199,.45), transparent 60%), #0b0f1a; }
+      background: radial-gradient(1000px 600px at 50% 40%, color-mix(in srgb, ${accent} 40%, transparent), transparent 60%), #0a0c14; }
     .card.on { opacity: 1; }
-    .card h1 { margin: 0; font-size: 60px; font-weight: 700; letter-spacing: -.02em; }
+    .card h1 { margin: 0; font-size: 62px; font-weight: 700; letter-spacing: -.02em; }
     .card p { margin: 0; font-size: 23px; line-height: 1.4; color: rgba(255,255,255,.8); max-width: 940px; }
-    .card small { margin-top: 14px; font-size: 16px; color: #a9c2ff; letter-spacing: .02em; }
+    .card small { margin-top: 14px; font-size: 16px; color: color-mix(in srgb, ${accent} 60%, #fff); letter-spacing: .02em; }
   `;
   const CURSOR = `<svg viewBox="0 0 24 24" width="26" height="26"><path d="M3 2l17 10.5-7.4 1.3L17 21.5l-3 1.5-4.3-7.8L4 20z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
   const state = { step: '', text: '' };
-  let host, root, cur, cap, card;
+  let host, root, cur, cap, ff, card;
+  let ghost = null;
+  let ghostOffset = [0, 0];
 
   function build() {
     // A custom tag: no page selector targets it, and inline !important beats any that tried.
@@ -66,9 +76,9 @@ function overlayInit() {
       'all: initial !important; position: fixed !important; inset: 0 !important;' +
       'z-index: 2147483647 !important; pointer-events: none !important; font-family: inherit !important;';
     const shadow = host.attachShadow({ mode: 'closed' });
-    shadow.innerHTML = `<style>${CSS}</style><div class="root"><div class="cap"><span class="step"></span><span class="txt"></span></div><div class="card"></div><div class="cur">${CURSOR}</div></div>`;
+    shadow.innerHTML = `<style>${CSS}</style><div class="root"><div class="cap"><span class="step"></span><span class="txt"></span></div><div class="ff"></div><div class="card"></div><div class="cur">${CURSOR}</div></div>`;
     root = shadow.querySelector('.root');
-    [cur, cap, card] = ['.cur', '.cap', '.card'].map((s) => shadow.querySelector(s));
+    [cur, cap, ff, card] = ['.cur', '.cap', '.ff', '.card'].map((s) => shadow.querySelector(s));
   }
   function attach() {
     if (!document.body) return;
@@ -79,9 +89,12 @@ function overlayInit() {
     if (!cur) return;
     cur.style.opacity = '1';
     cur.style.transform = `translate(${x}px, ${y}px)`;
+    if (ghost) ghost.style.transform = `translate(${x - ghostOffset[0]}px, ${y - ghostOffset[1]}px) rotate(2deg)`;
   }
 
   window.addEventListener('mousemove', (e) => place(e.clientX, e.clientY), true);
+  // During an HTML5 drag, Chromium fires dragover instead of mousemove.
+  window.addEventListener('dragover', (e) => place(e.clientX, e.clientY), true);
   window.addEventListener(
     'mousedown',
     (e) => {
@@ -95,8 +108,33 @@ function overlayInit() {
     },
     true,
   );
+  // Headless Chromium renders no drag image, so draw one. The ghost is a clone
+  // of the page element and deliberately lives in the light DOM, so the app's
+  // own CSS styles it.
+  window.addEventListener(
+    'dragstart',
+    (e) => {
+      const src = e.target instanceof Element ? (e.target.closest('[draggable="true"]') ?? e.target) : null;
+      if (!src) return;
+      const rect = src.getBoundingClientRect();
+      ghost = src.cloneNode(true);
+      ghost.style.cssText +=
+        `;position:fixed;left:0;top:0;margin:0;width:${rect.width}px;pointer-events:none;` +
+        'z-index:2147483646;opacity:.92;box-shadow:0 18px 40px rgba(0,0,0,.45);transform-origin:20% 20%;';
+      ghostOffset = [e.clientX - rect.left, e.clientY - rect.top];
+      document.body.appendChild(ghost);
+      place(e.clientX, e.clientY);
+    },
+    true,
+  );
+  const dropGhost = () => {
+    ghost?.remove();
+    ghost = null;
+  };
+  window.addEventListener('dragend', dropGhost, true);
+  window.addEventListener('drop', dropGhost, true);
 
-  // React owns <body>; if a re-render ever drops the overlay, put it back.
+  // Frameworks own <body>; if a re-render ever drops the overlay, put it back.
   new MutationObserver(attach).observe(document, { childList: true, subtree: true });
   document.addEventListener('DOMContentLoaded', attach);
 
@@ -120,6 +158,11 @@ function overlayInit() {
       cap.classList.remove('on');
       setTimeout(swap, 250);
     },
+    fastForward(label) {
+      attach();
+      ff.textContent = label ?? '';
+      ff.classList.toggle('on', !!label);
+    },
     card(html) {
       attach();
       if (html) card.innerHTML = html;
@@ -128,24 +171,38 @@ function overlayInit() {
   };
 }
 
-/** Timestamps frames on arrival; a frame lasts until the next one, so static holds keep real-time pacing. */
+/**
+ * Frames are timestamped on arrival and mapped onto a *virtual* clock, so a
+ * fast-forwarded segment (an LLM round-trip, say) plays back compressed while
+ * everything else keeps real-time pacing — including static holds, since a
+ * frame lasts until the next one arrives.
+ */
 class Screencast {
   constructor(page) {
     this.page = page;
     this.frames = [];
-    this.dir = mkdtempSync(join(tmpdir(), 'scorecard-demo-'));
+    this.speed = 1;
+    this.virtual = 0;
+    this.lastWall = null;
+    this.dir = mkdtempSync(join(tmpdir(), 'demo-video-'));
+  }
+
+  advance() {
+    const now = Date.now() / 1000;
+    if (this.lastWall != null) this.virtual += (now - this.lastWall) / this.speed;
+    this.lastWall = now;
   }
 
   async start() {
-    this.started = Date.now();
     this.cdp = await this.page.context().newCDPSession(this.page);
     this.cdp.on('Page.screencastFrame', ({ data, sessionId }) => {
       // Frames already in flight when recording stops must not land in a deleted directory.
       if (this.stopped) return;
       this.cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+      this.advance();
       const file = join(this.dir, `${String(this.frames.length).padStart(6, '0')}.jpg`);
       writeFileSync(file, Buffer.from(data, 'base64'));
-      this.frames.push({ file, t: (Date.now() - this.started) / 1000 });
+      this.frames.push({ file, t: this.virtual });
     });
     await this.cdp.send('Page.startScreencast', {
       format: 'jpeg',
@@ -155,10 +212,16 @@ class Screencast {
     });
   }
 
+  setSpeed(speed) {
+    this.advance();
+    this.speed = speed;
+  }
+
   async stop() {
     this.stopped = true;
     await this.cdp.send('Page.stopScreencast');
-    this.end = (Date.now() - this.started) / 1000;
+    this.advance();
+    this.end = this.virtual;
   }
 
   /**
@@ -167,10 +230,11 @@ class Screencast {
    * - `linkedin`: full 2560×1440 at near-transparent quality — LinkedIn takes
    *   up to 4096×2304 and 30 Mbps, so the file size is not the constraint;
    * - `readme`: the best picture that fits GitHub's 10 MB attachment limit —
-   *   a two-pass encode aimed at README_TARGET_BYTES.
+   *   1080p (downscaled from the 1440p capture), two-pass, aimed at
+   *   README_TARGET_BYTES.
    */
   encode({ linkedin, readme }) {
-    if (!this.frames.length) throw new Error('Nenhum frame capturado.');
+    if (!this.frames.length) throw new Error('No frames captured.');
     const lines = ['ffconcat version 1.0'];
     this.frames.forEach((frame, i) => {
       const next = this.frames[i + 1]?.t ?? this.end;
@@ -211,14 +275,17 @@ class Screencast {
 
 function ffmpeg(args) {
   const { status, error } = spawnSync('ffmpeg', args, { stdio: 'inherit' });
-  if (error || status !== 0) throw error ?? new Error(`ffmpeg saiu com código ${status}`);
+  if (error || status !== 0) throw error ?? new Error(`ffmpeg exited with code ${status}`);
 }
 
 /** Drives the page like a person would: eased cursor travel, visible clicks, captions. */
 export class Director {
-  /** `topInset`: height of any sticky header, so framing and visibility checks clear it. */
-  static async create(context, { topInset = 0 } = {}) {
-    await context.addInitScript(overlayInit);
+  /**
+   * `topInset`: height of any sticky header, so framing and visibility checks clear it.
+   * `accent`: CSS colour for ripples, caption labels, the badge and the title-card glow — use the app's brand colour.
+   */
+  static async create(context, { topInset = 0, accent = '#6366f1' } = {}) {
+    await context.addInitScript(overlayInit, accent);
     const page = await context.newPage();
     return new Director(page, topInset);
   }
@@ -256,6 +323,7 @@ export class Director {
     await this.page.evaluate(([s, t]) => window.__demo.caption(s, t), [step, text]);
   }
 
+  /** Full-screen title card over the page; pass null to fade it out. */
   async card(html, ms) {
     await this.page.evaluate((h) => window.__demo.card(h), html);
     if (ms) await sleep(ms);
@@ -275,16 +343,23 @@ export class Director {
   async pointAt(locator, ms) {
     await this.reveal(locator);
     const box = await locator.boundingBox();
-    if (!box) throw new Error(`Elemento sem caixa visível: ${locator}`);
+    if (!box) throw new Error(`Element has no visible box: ${locator}`);
     await this.moveTo(box.x + box.width / 2, box.y + box.height / 2, ms);
   }
 
   async click(locator, { ms, pause = 180 } = {}) {
     await this.pointAt(locator, ms);
     await sleep(pause);
-    await this.page.mouse.down();
-    await sleep(70);
-    await this.page.mouse.up();
+    // The centre of the bounding box does not always hit-test to the element
+    // (it can land on a container and the click silently does nothing).
+    // Playwright's own click picks a point that does, and runs actionability
+    // checks; the overlay cursor follows the real mouse there.
+    await locator.click({ delay: 70 });
+  }
+
+  async type(locator, text, delay = 26) {
+    await this.click(locator);
+    await locator.pressSequentially(text, { delay });
   }
 
   /** Native <select> popups are not rendered in a screencast: point at the control, then pick. */
@@ -292,6 +367,17 @@ export class Director {
     await this.pointAt(locator, ms);
     await sleep(250);
     await locator.selectOption(option);
+  }
+
+  /** HTML5 drag-and-drop with a visible ghost following the cursor. */
+  async drag(source, target, ms = 1100) {
+    await this.pointAt(source);
+    await sleep(200);
+    await this.page.mouse.down();
+    await this.moveTo(this.pos.x + 12, this.pos.y + 6, 120);
+    await this.pointAt(target, ms);
+    await sleep(250);
+    await this.page.mouse.up();
   }
 
   /** Smooth-scrolls only when the element is not already comfortably in view. */
@@ -325,5 +411,21 @@ export class Director {
       return true;
     });
     if (moved) await sleep(800);
+  }
+
+  /**
+   * Plays `work` back at `speed`×, with an on-screen badge saying so. Use it
+   * for real waits (LLM round-trips, heavy queries) — never hide that the
+   * wait happened.
+   */
+  async fastForward(speed, work, label = `▶▶ ${speed}× · espera acelerada`) {
+    await this.page.evaluate((l) => window.__demo.fastForward(l), label);
+    this.cast.setSpeed(speed);
+    try {
+      return await work();
+    } finally {
+      this.cast.setSpeed(1);
+      await this.page.evaluate(() => window.__demo.fastForward(null));
+    }
   }
 }

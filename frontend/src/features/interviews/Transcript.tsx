@@ -12,16 +12,17 @@ type SourceKind = 'diarization' | 'raw';
 interface Props {
   transcription: RawTranscription;
   diarization: TranscriptSegment[] | null;
-  /** Quote to find and highlight; set by clicking a citation in the scorecard. */
+  /** Quote to find and highlight; comes from `?citacao=` on the interview URL. */
   highlightQuote: string | null;
-  onClearHighlight: () => void;
+  /** Link back to the same interview without a highlight. */
+  clearHref: string;
 }
 
 export function Transcript({
   transcription,
   diarization,
   highlightQuote,
-  onClearHighlight,
+  clearHref,
 }: Props) {
   const searchId = useId();
   const [query, setQuery] = useState('');
@@ -46,12 +47,21 @@ export function Transcript({
 
   const listRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
-    if (highlightIndex < 0 || listRef.current === null) return;
-    const node = listRef.current.children[highlightIndex];
-    if (node instanceof HTMLElement) {
-      node.scrollIntoView({ block: 'center' });
-      node.focus({ preventScroll: true });
+    const list = listRef.current;
+    if (highlightIndex < 0 || list === null) return;
+    const node = list.children[highlightIndex];
+    if (!(node instanceof HTMLElement)) return;
+    // Scroll the list itself, not the page: next to the scorecard the
+    // transcript is a sticky panel, and `scrollIntoView` would drag the whole
+    // page along. Only when the panel is off-screen (stacked on a phone)
+    // does the page move, to bring the panel into view.
+    list.scrollTop = node.offsetTop - list.clientHeight / 2 + node.clientHeight / 2;
+    const box = list.getBoundingClientRect();
+    if (box.top < 0 || box.top > window.innerHeight * 0.6) {
+      const masthead = document.querySelector('.masthead')?.getBoundingClientRect().height ?? 0;
+      window.scrollTo({ top: window.scrollY + box.top - masthead - 96 });
     }
+    node.focus({ preventScroll: true });
   }, [highlightIndex, highlightQuote]);
 
   const visible = useMemo(() => {
@@ -143,9 +153,9 @@ export function Transcript({
               </span>
             </>
           )}
-          <button type="button" className="link-button" onClick={onClearHighlight}>
+          <a className="link-button" href={clearHref}>
             Limpar destaque
-          </button>
+          </a>
         </div>
       )}
 

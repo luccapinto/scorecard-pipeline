@@ -9,8 +9,8 @@ interface Props {
   quote: string;
   /** Consolidated transcript text, or null when there is none yet. */
   transcript: string | null;
-  /** Scrolls to and highlights the quote inside the transcript panel. */
-  onLocate?: () => void;
+  /** Link that highlights the quote inside the transcript panel. */
+  locateHref?: string;
 }
 
 // The single most important signal in the application.
@@ -18,10 +18,10 @@ interface Props {
 // Three states, and they must be distinguishable without colour — a reviewer
 // with deuteranopia, reading a greyscale print, or glancing at a screenshot
 // has to reach the same conclusion. So each state differs in icon, in wording,
-// in border weight and in how much space it takes. `false` is the only one
-// that is loud, because it is the only one where a human might otherwise
+// in weight and in how much space it takes. `false` is the only one that is
+// loud (the red pen), because it is the only one where a human might otherwise
 // approve a career decision on a sentence nobody said.
-export function EvidenceBadge({ verified, quote, transcript, onLocate }: Props) {
+export function EvidenceBadge({ verified, quote, transcript, locateHref }: Props) {
   // Only computed for the flagged case, and only when there is a transcript to
   // search: this is the evidence behind the alarm, not decoration.
   const nearest = useMemo(() => {
@@ -37,21 +37,24 @@ export function EvidenceBadge({ verified, quote, transcript, onLocate }: Props) 
   if (verified === false) {
     return (
       <div className="evidence evidence--alert" role="alert">
-        <span className="evidence__icon" aria-hidden="true">
-          <Icon name="alert" size="1.25rem" />
-        </span>
+        <p className="evidence__stamp">
+          <Icon name="alert" />
+          Não verificada
+        </p>
         <div className="evidence__body">
           <p className="evidence__headline">
-            Evidência NÃO verificada — possível alucinação do modelo.
+            Esta frase não está na transcrição — possível alucinação do modelo.
           </p>
           <p className="evidence__text">
-            A busca por esta citação na transcrição não encontrou nenhuma ocorrência. Ela pode ter
-            sido inventada pelo modelo. <strong>Confirme na transcrição antes de considerar esta
-            nota</strong> — ou desconsidere a competência.
+            A busca não encontrou nenhuma ocorrência dela no que foi dito.{' '}
+            <strong>Confirme na transcrição antes de considerar esta nota</strong> — ou desconsidere
+            a competência.
           </p>
           {nearest !== null && (
             <p className="evidence__nearest">
-              Trecho mais parecido encontrado ({nearest.similarity}% de semelhança):{' '}
+              <span className="evidence__nearest-label">
+                Trecho mais parecido encontrado ({nearest.similarity}% de semelhança)
+              </span>
               <q className="evidence__nearest-quote">
                 {transcript!.slice(nearest.match.start, nearest.match.end)}
               </q>
@@ -71,17 +74,15 @@ export function EvidenceBadge({ verified, quote, transcript, onLocate }: Props) 
   if (verified === true) {
     return (
       <p className="evidence evidence--ok">
-        <span className="evidence__icon" aria-hidden="true">
-          <Icon name="check" />
-        </span>
+        <Icon name="check" className="evidence__icon" />
         <span className="evidence__body">
           <strong>Evidência verificada.</strong> A citação foi localizada na transcrição.
-          {found && onLocate && (
+          {found && locateHref !== undefined && (
             <>
               {' '}
-              <button type="button" className="link-button" onClick={onLocate}>
+              <a className="evidence__locate" href={locateHref}>
                 Ver na transcrição
-              </button>
+              </a>
             </>
           )}
         </span>
@@ -91,9 +92,7 @@ export function EvidenceBadge({ verified, quote, transcript, onLocate }: Props) 
 
   return (
     <p className="evidence evidence--unchecked">
-      <span className="evidence__icon" aria-hidden="true">
-        <Icon name="question" />
-      </span>
+      <Icon name="question" className="evidence__icon" />
       <span className="evidence__body">
         <strong>Evidência não verificada automaticamente.</strong> O campo veio sem resultado de
         verificação — não é um alerta, é a ausência de uma checagem. Confirme na transcrição.

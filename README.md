@@ -16,7 +16,7 @@ entirely **locally** (WhisperX + pyannote, without sending audio to third
 parties) or **via API** (Deepgram nova-3, the default — one call handles both
 steps). Switching is an environment variable; the pipeline, the state machine and the scoring do not change.
 
-https://github.com/user-attachments/assets/28bc62f2-5d57-4e0d-a3b4-7f0e5bde10e8
+https://github.com/user-attachments/assets/aebe3f3d-f12c-4650-bf7c-c115396fb60b
 
 ## 📑 Table of Contents
 
@@ -199,6 +199,8 @@ We document the project's main technical choices in detail through Architecture 
 2. **[ADR 0002 — Deterministic Lookup vs. RAG](docs/adr/0002-lookup-deterministico-vs-rag.md):** Why we chose lookup of local job files over vector-based semantic search for prompt assembly.
 3. **[ADR 0003 — Simple Queue (RQ) vs. Celery](docs/adr/0003-rq-vs-celery.md):** Balancing complexity and robustness with RQ.
 4. **[ADR 0004 — Bias Risk in Culture Assessment](docs/adr/0004-avaliacao-cultura-fit-bias.md):** Ethical mitigations based on BARS anchors, mandatory literal evidence and mandated human validation.
+5. **[ADR 0005 — Two UI modes, never mixed](docs/adr/0005-dois-modos-api-e-demonstracao.md):** API mode shows only what the backend really has and declares every gap; demo mode stages the rest with a synthetic dataset and zero network requests.
+6. **[ADR 0006 — A public demo without API mode](docs/adr/0006-build-showcase-sem-modo-api.md):** The GitHub Pages build compiles API mode out entirely, and ships a landing page and a guided tour for people who will never run the backend.
 
 There is also a full architecture review in [docs/reviews/](docs/reviews/).
 
@@ -329,31 +331,54 @@ a human, and — the point of the whole system — an unmissable alarm when the
 model cited a sentence that is not in the transcript.
 
 > **▶ Try it live, no clone and no backend required:**
-> **<https://luccapinto.github.io/scorecard-pipeline/#/demo/esteira>**
+> **<https://luccapinto.github.io/scorecard-pipeline/>**
 >
-> That link opens the SPA in **demonstration mode**: a synthetic, deterministic
-> dataset that runs entirely in your browser. No request leaves the page, so
-> there is nothing to install and nothing to configure.
+> The public demo opens on a landing page that explains the project in one
+> screen and offers a **2-minute guided tour** over the real interface — or you
+> can explore on your own. Everything runs in your browser on a synthetic,
+> deterministic dataset: no request leaves the page, nothing to install,
+> nothing to configure.
 
-![Pipeline dashboard](docs/assets/esteira.png)
+![Landing page of the public demo](docs/assets/inicio.png)
 
-### Two modes, never mixed
+### A guided tour over the real interface
 
-The API deliberately does not model a candidate entity, hiring funnel stages,
-decision authorship, an audit trail, or message history. Rather than fabricate
-those — in a project whose whole subject is *detecting fabrication* — the SPA
-runs in two explicit modes, selected in the URL:
+Nine steps with a spotlight on the live UI (not slides), following one
+interview from start to finish: a recording arrives → the pipeline processes it
+stage by stage → the scorecard with its BARS anchors → **the citation that does
+not exist, caught** → a verified citation leading to the exact passage in the
+transcript → the two-step human decision → the Slack notification → "behind the
+product" (architecture, tests, links to the code and the ADRs). Keyboard
+navigable (←/→, Esc), announced to screen readers, resumable, and every step is
+a URL (`?tour=N`) — which is how the screenshots, the accessibility audit and
+the tests open each one.
 
-- **API mode** (`#/...`) — the real backend, nothing invented. Where the
-  contract has no answer, the UI **states the absence** and explains why in one
-  line.
-- **Demo mode** (`#/demo/...`) — a deterministic synthetic dataset served
-  entirely in the browser. **Zero network requests leave the page**, in any
-  flow, enforced by a test that drives the real app with every network
-  primitive replaced by a throwing spy.
+| The citation that is not in the transcript | The pipeline processing a new interview |
+| --- | --- |
+| ![Tour step 5: the invented citation](docs/assets/tour-5.png) | ![Tour step 3: the pipeline](docs/assets/tour-3.png) |
 
-The rationale, the rejected alternatives and the accepted cost are recorded in
-[ADR 0005](docs/adr/0005-dois-modos-api-e-demonstracao.md).
+### Two builds: the public showcase and the real thing
+
+- **Showcase** (`npm run build:showcase`, published to GitHub Pages) — the
+  demonstration only, with the landing page and the tour. **API mode is not in
+  this bundle at all**: a build-time constant lets the bundler delete it, and
+  `npm run check:showcase` scans the built files and fails if any API-mode
+  string or any network primitive survived. Old API links open their
+  demonstration equivalent instead of an error.
+- **Full build** (`npm run build`, used by Docker Compose and `npm run dev`) —
+  for whoever runs the backend. It has both modes, selected in the URL:
+  - **API mode** (`#/...`) — the real backend, nothing invented. The API
+    deliberately does not model a candidate entity, hiring funnel stages,
+    decision authorship, an audit trail or message history; where the
+    contract has no answer, the UI **states the absence** and explains why in
+    one line.
+  - **Demo mode** (`#/demo/...`) — the same synthetic dataset as the showcase,
+    with **zero network requests** in any flow, enforced by a test that drives
+    the real app with every network primitive replaced by a throwing spy.
+
+The rationale is recorded in [ADR 0005](docs/adr/0005-dois-modos-api-e-demonstracao.md)
+(two modes, never mixed) and [ADR 0006](docs/adr/0006-build-showcase-sem-modo-api.md)
+(the showcase build and the recruiter-facing experience).
 
 Crucially, the hallucination flag is **derived even in the demo**: the client
 ports the normalisation rule from `app/text_utils.py::clean_text` and actually
@@ -362,98 +387,114 @@ not there.
 
 ### The screens
 
+Four destinations — **Esteira** (the pipeline), **Entrevistas** (interviews),
+**Decisões** (decisions) and **Por dentro** (the engineering screens) — and every
+screen explains itself in one line. The interface is in Portuguese.
+
+#### The pipeline, and a new interview going through it
+
+Each interview sits in its real backend state, left to right, and the pipeline
+stops in front of a person. **"Simular nova entrevista"** (simulate a new
+interview) sends a synthetic recording through the same webhook and walks it
+through every stage, one step at a time — nothing moves unless someone asks, and
+the state is still a pure function of (clock anchor, actions), so every
+screenshot is reproducible.
+
+![The pipeline board](docs/assets/esteira.png)
+
 #### The scorecard, and the alarm the whole system exists for
 
 Each competency shows its 1–5 score **and the BARS anchor text behind it** —
 the number alone means nothing. When a citation cannot be found in the
-transcript, the card becomes a loud, structural alert: icon, wording, border
-and position, never colour alone. It also shows the closest passage the search
-*did* find, so the reviewer can judge rather than just be warned.
+transcript, it is struck through in red and stamped, never by colour alone, and
+the card shows the closest passage the search *did* find, so the reviewer can
+judge rather than just be warned. The transcript sits right next to it.
 
-![Scorecard with two unverified citations](docs/assets/entrevista-alerta.png)
+![Scorecard with two citations that are not in the transcript](docs/assets/entrevista-alerta.png)
 
-Clicking a citation scrolls to it in the transcript and highlights it in place.
+A verified citation links to the exact passage in the transcript, highlighted:
 
-#### The approval queue
+![A verified citation highlighted in the transcript](docs/assets/entrevista-citacao.png)
 
-Ordered by waiting time, with everything needed to decide visible without
-opening the item: role, the model's recommendation, the average score, and how
-many citations were actually located. **There is no bulk approval**, by design —
-not even in the demo.
+#### Decisions are human, one at a time
 
-![Approval queue](docs/assets/aprovacoes.png)
+Ordered by waiting time, flagged evidence first-class, everything needed to
+decide visible without opening the item. **There is no bulk approval**, by
+design — not even in the demo — and deciding takes two steps that name the
+person and repeat the evidence warning.
 
-#### Integrations and messages
+![Decision queue](docs/assets/decisoes.png)
+
+#### Behind the product
+
+The architecture from webhook to decision, the state machine, the ADRs and what
+CI enforces — each claim linked to the file that implements it.
+
+![Behind the product](docs/assets/por-dentro.png)
+
+#### Integrations, ingestion, failures, the funnel
 
 A faithful rendering of the Slack Block Kit payload `app/notifications.py`
-actually builds — including the per-competency verification marker and the
-omission of the action buttons when there is no approval token — with the raw
-JSON one click away.
+actually builds; the exact webhook request, with the HMAC signature marked as
+server-side only and `202` explained as acceptance rather than completion; a
+full Python traceback split into what broke and where, with the reprocess
+action; and the "ATS" funnel, labelled as synthetic on the screen because hiring
+phases do not exist in the backend.
 
-![Integrations and Slack preview](docs/assets/integracoes.png)
-
-#### The candidate funnel — labelled as synthetic, on the screen
-
-This is the "ATS" view, and it is the clearest example of the honesty rule:
-hiring phases do not exist in the backend, so the screen says so in a banner
-before showing anything.
-
-![Candidate funnel](docs/assets/funil.png)
-
-#### Failures, and getting out of them
-
-`error_log` is a full Python traceback. It is split into what broke and where,
-with the frames folded away until asked for, plus the reprocess action.
-
-![Failed interview with traceback](docs/assets/falha.png)
-
-#### Ingestion, with the contract made legible
-
-The exact webhook request, the HMAC signature marked as server-side only,
-idempotency via `external_id`, and `202` explained as acceptance rather than
-completion.
-
-![Ingestion and webhook inspector](docs/assets/ingestao.png)
+| Slack and integrations | Ingestion |
+| --- | --- |
+| ![Slack preview](docs/assets/integracoes.png) | ![Webhook inspector](docs/assets/ingestao.png) |
+| **Failure and reprocessing** | **Candidate funnel (synthetic)** |
+| ![Failed interview with traceback](docs/assets/falha.png) | ![Candidate funnel](docs/assets/funil.png) |
 
 #### Both themes are designed, and it works on a phone
 
 Dark is an independently chosen palette, not a filter over light, and every
-colour pair in both themes is checked against WCAG AA in CI.
+colour pair in both themes is checked against WCAG AA in CI. Type is set in
+Newsreader, Schibsted Grotesk and JetBrains Mono, **self-hosted in the bundle** —
+a font CDN would be the demo's first network request.
 
-| Dark theme | Mobile, 390 px |
-| --- | --- |
-| ![Dashboard in dark theme](docs/assets/esteira-escuro.png) | ![Dashboard on mobile](docs/assets/esteira-mobile.png) |
+| Dark theme | Mobile, 390 px | Tour on mobile |
+| --- | --- | --- |
+| ![Landing page in dark theme](docs/assets/inicio-escuro.png) | ![Pipeline on mobile](docs/assets/esteira-mobile.png) | ![Tour step on mobile](docs/assets/tour-5-mobile.png) |
 
-More screens — the interview list, observability and settings — are in
-[`docs/assets/`](docs/assets/).
+More screens — the interview list, observability, dark scorecard, mobile
+landing — are in [`docs/assets/`](docs/assets/).
 
-All screenshots are generated by `frontend/scripts/screenshots.mjs` from demo
-mode, which is deterministic precisely so they can be reproduced on any machine.
-The demo video at the top is recorded the same way: `npm run demo-video`
-(`frontend/scripts/record-demo.mjs`) drives demo mode like a person would and
-encodes it with ffmpeg. The MP4 is hosted as a GitHub attachment, not committed.
+All screenshots are generated by `frontend/scripts/screenshots.mjs` from the
+showcase build, which is deterministic precisely so they can be reproduced on any
+machine. The demo video at the top is recorded the same way: `npm run demo-video`
+(`frontend/scripts/record-demo.mjs`) drives the showcase build like a person
+would, with captions saying why each screen matters, and encodes it with ffmpeg.
+The MP4 is hosted as a GitHub attachment, not committed.
 
 ### Running it
 
-- **With Docker Compose** the SPA is built from source (multi-stage Node →
-  nginx) and served at `http://localhost:5173`, an origin already on the API's
-  CORS allowlist.
+- **With Docker Compose** the SPA (full build) is built from source
+  (multi-stage Node → nginx) and served at `http://localhost:5173`, an origin
+  already on the API's CORS allowlist.
 - **In development**: `cd frontend && npm install && npm run dev` (port 5173 is
   mandatory — the CORS allowlist depends on it).
-- **Demo mode needs no backend at all**: open `#/demo/esteira` on any build.
-- The API URL and `X-API-Key` are configured **at runtime** in the UI itself
-  (persisted in the browser's `localStorage`) — no key or host is baked into
-  the build. The key never appears in a log, a URL or an error message.
+- **The demonstration needs no backend at all**: open `#/demo` on any full build,
+  or build and preview the showcase (`npm run build:showcase && npm run
+  preview:showcase`).
+- In the full build, the API URL and `X-API-Key` are configured **at runtime** in
+  the UI itself (persisted in the browser's `localStorage`) — no key or host is
+  baked into the build. The key never appears in a log, a URL or an error
+  message.
 - How to run, build and test: see [`frontend/README.md`](frontend/README.md).
 
 ### Quality gates
 
-Enforced by the `frontend` CI job: TypeScript `strict`, **260 tests**
-(Vitest + Testing Library), a WCAG AA contrast check over the design tokens in
-both themes, an **axe-core audit across 10 screens × 2 themes**, and a
-**≤ 180 KB gzipped** initial-load budget (currently ~99 KB; the demo dataset is
-a separate chunk that API-mode users never download). Runtime dependencies:
-`react` and `react-dom`, and nothing else.
+Enforced by the `frontend` CI job: TypeScript `strict`, **303 tests** (Vitest +
+Testing Library, including a project that compiles the app as the showcase and
+tests the public bundle as built), a WCAG AA contrast check over the design
+tokens in both themes, an **axe-core audit of every screen and every tour step ×
+2 themes on both builds**, the showcase bundle check, and a **≤ 180 KB gzipped**
+initial-load budget on both builds (currently ~119 KB full; ~125 KB showcase,
+which always loads the demo dataset chunk — API-mode users of the full build
+never download it).
+Runtime dependencies: `react`, `react-dom` and three self-hosted font packages.
 
 ---
 

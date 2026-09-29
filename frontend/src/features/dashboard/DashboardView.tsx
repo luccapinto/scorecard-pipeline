@@ -4,284 +4,275 @@ import type { Route } from '../../app/routes';
 import { BarChart } from '../../components/charts/BarChart';
 import { RateGauge } from '../../components/charts/RateGauge';
 import { ErrorState } from '../../components/ErrorState';
-import { StatusBadge } from '../../components/StatusBadge';
 import { Icon } from '../../components/ui/Icon';
-import { SkeletonCards, SkeletonRows } from '../../components/ui/Skeleton';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { SkeletonCards } from '../../components/ui/Skeleton';
+import { useDemoControls } from '../../data/demoControls';
 import { useInterviews } from '../../data/InterviewsProvider';
 import { useDataSource } from '../../data/source';
 import { hrefFor } from '../../hooks/useHashRoute';
-import { formatDuration, formatPercent, formatScore, shortId } from '../../lib/format';
+import { formatDuration, formatPercent, formatScore } from '../../lib/format';
 import type { PeriodKey } from '../../lib/metrics';
 import { PERIODS, computeMetrics, msSinceUpdate, withinPeriod } from '../../lib/metrics';
 import type { InterviewSummary } from '../../lib/projection';
-import type { StatusFilter } from '../../lib/status';
 import { statusMeta } from '../../lib/status';
-import { PipelineSummary } from '../interviews/PipelineSummary';
+import { PipelineBoard } from './PipelineBoard';
 
 interface Props {
   route: Route;
 }
 
-const PREVIEW_LIMIT = 8;
-
 export function DashboardView({ route }: Props) {
   const source = useDataSource();
-  const { summaries, error, reload } = useInterviews();
+  const demo = useDemoControls();
+  const { summaries, error, reload, jobTitles } = useInterviews();
   const [period, setPeriod] = useState<PeriodKey>('7d');
-  const [filter, setFilter] = useState<StatusFilter>('action_required');
 
   const now = source.now();
-
   const inPeriod = useMemo(
     () => (summaries === null ? [] : withinPeriod(summaries, period, now)),
     [summaries, period, now],
   );
   const metrics = useMemo(() => computeMetrics(inPeriod, now), [inPeriod, now]);
 
-  const filtered = useMemo(() => {
-    if (summaries === null) return [];
-    const matching = summaries.filter((summary) => {
-      if (filter === 'all') return true;
-      if (filter === 'action_required') return summary.needsAction;
-      return summary.status === filter;
-    });
-    // Longest-waiting first: on an operations board, the oldest untouched item
-    // is the one most likely to be forgotten.
-    return [...matching].sort((a, b) => a.updatedAt - b.updatedAt);
-  }, [summaries, filter]);
+  // Flagged evidence first, then the longest wait: the item most likely to
+  // be decided on a sentence nobody said is the one to look at first.
+  const awaiting = useMemo(
+    () =>
+      (summaries ?? [])
+        .filter((summary) => summary.status === 'aguardando_aprovacao')
+        .sort(
+          (a, b) =>
+            Number(b.hasEvidenceAlert) - Number(a.hasEvidenceAlert) || a.updatedAt - b.updatedAt,
+        ),
+    [summaries],
+  );
 
   if (error !== null && summaries === null) {
     return <ErrorState error={error} onRetry={reload} route={route} />;
   }
 
-  if (summaries === null) {
-    return (
-      <>
-        <SkeletonCards cards={4} label="Carregando métricas da esteira…" />
-        <SkeletonRows rows={6} label="Carregando entrevistas…" />
-      </>
-    );
-  }
+  const simulated =
+    demo?.simulatedId == null
+      ? undefined
+      : (summaries ?? []).find((summary) => summary.id === demo.simulatedId);
 
   return (
-    <div className="dashboard">
-      <div className="view-head">
-        <div className="view-head__text">
-          <h1>Esteira</h1>
-          <p className="view-head__sub">
-            Onde cada entrevista está, o que precisa de uma pessoa, e quanta evidência o
-            verificador conseguiu confirmar.
-          </p>
-        </div>
-        <div className="view-head__actions">
-          <label className="field-inline">
-            <span>Período</span>
-            <select
-              value={period}
-              onChange={(event) => setPeriod(event.target.value as PeriodKey)}
+    <div className="page esteira">
+      <PageHeader
+        eyebrow="Esteira"
+        title="Da gravação à decisão"
+        lede="Cada entrevista atravessa estas etapas sozinha e para antes da decisão — que é sempre de uma pessoa. Abra qualquer cartão para ver o scorecard e as evidências."
+        actions={
+          demo !== null ? (
+            <button
+              type="button"
+              className="btn btn--primary btn--lg"
+              onClick={demo.simulate}
+              disabled={demo.playingId !== null}
+              data-tour="simulate"
             >
-              {Object.entries(PERIODS).map(([key, config]) => (
-                <option key={key} value={key}>
-                  {config.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <section className="stats" aria-label="Indicadores do período">
-        <Stat
-          label="Aguardando decisão"
-          value={String(metrics.awaitingApproval)}
-          hint={
-            metrics.longestWaitMs === null
-              ? 'Nada na fila.'
-              : `Espera mais longa: ${formatDuration(metrics.longestWaitMs)}`
-          }
-          tone={metrics.awaitingApproval > 0 ? 'warn' : 'neutral'}
-        />
-        <Stat
-          label="Evidência verificada"
-          value={formatPercent(metrics.evidenceRate)}
-          hint={
-            metrics.interviewsWithAlert === 0
-              ? 'Nenhuma citação sinalizada.'
-              : `${metrics.interviewsWithAlert} entrevista(s) com citação não encontrada`
-          }
-          tone={metrics.interviewsWithAlert > 0 ? 'danger' : 'ok'}
-        />
-        <Stat
-          label="Em processamento"
-          value={String(metrics.processing)}
-          hint={`${metrics.total} entrevista(s) no período`}
-          tone="neutral"
-        />
-        <Stat
-          label="Falhas"
-          value={String(metrics.failed)}
-          hint={metrics.failed === 0 ? 'Nenhuma falha no período.' : 'Precisam de reprocessamento.'}
-          tone={metrics.failed > 0 ? 'danger' : 'neutral'}
-        />
-      </section>
-
-      <div className="charts">
-        <section className="card" aria-labelledby="dist-title">
-          <h2 id="dist-title" className="card__title">
-            Distribuição de notas
-          </h2>
-          <div className="card__body">
-            <p className="card__lead">
-              {metrics.scoredCount === 0
-                ? 'Ainda não há scorecards no período selecionado.'
-                : `${metrics.scoredCount} scorecard(s), média geral ${formatScore(metrics.averageScore)}.`}
-            </p>
-            <BarChart
-              title="Distribuição das notas atribuídas, de 1 a 5 na escala BARS"
-              labelHeader="Nota"
-              valueHeader="Avaliações"
-              unit=" avaliações"
-              data={metrics.scoreDistribution.map((count, index) => ({
-                label: String(index + 1),
-                value: count,
-                color: `var(--chart-${index + 1})`,
-                description: `Nota ${index + 1}`,
-              }))}
-            />
-          </div>
-        </section>
-
-        <section className="card" aria-labelledby="evid-title">
-          <h2 id="evid-title" className="card__title">
-            Verificação de evidência
-          </h2>
-          <div className="card__body">
-            <p className="card__lead">
-              Proporção de citações do modelo que foram efetivamente localizadas na transcrição.
-              Citações não verificadas automaticamente ficam fora do cálculo.
-            </p>
-            <RateGauge
-              rate={metrics.evidenceRate}
-              caption="das citações conferidas foram encontradas"
-              title="Resultado da verificação de evidência no período"
-              segments={[
-                {
-                  label: 'Encontradas',
-                  value: metrics.evidence.verified,
-                  color: 'var(--ok)',
-                },
-                {
-                  label: 'Não encontradas',
-                  value: metrics.evidence.unverified,
-                  color: 'var(--danger)',
-                },
-                {
-                  label: 'Não verificadas',
-                  value: metrics.evidence.unchecked,
-                  color: 'var(--neutral)',
-                },
-              ]}
-            />
-          </div>
-        </section>
-      </div>
-
-      <PipelineSummary summaries={summaries} active={filter} onSelect={setFilter} />
-
-      <section className="card" aria-labelledby="fila-title">
-        <div className="card__header">
-          <h2 id="fila-title" className="card__title">
-            {filter === 'action_required'
-              ? 'Precisam de uma pessoa'
-              : `Filtro: ${filter === 'all' ? 'todas' : statusMeta(filter).label}`}
-          </h2>
-          <a
-            className="link-button"
-            href={hrefFor({ mode: route.mode, name: 'interviews', clockAnchor: route.clockAnchor })}
-          >
-            Ver lista completa <Icon name="arrowRight" />
-          </a>
-        </div>
-        <div className="card__body">
-          {filtered.length === 0 ? (
-            <p className="muted">Nada neste filtro.</p>
+              <Icon name="play" />
+              {demo.playingId !== null ? 'Processando…' : 'Simular nova entrevista'}
+            </button>
           ) : (
-            <ul className="queue">
-              {filtered.slice(0, PREVIEW_LIMIT).map((summary) => (
-                <QueueRow key={summary.id} summary={summary} route={route} now={now} />
+            <a
+              className="btn btn--primary btn--lg"
+              href={hrefFor({ mode: route.mode, name: 'new', clockAnchor: route.clockAnchor })}
+            >
+              <Icon name="plus" />
+              Nova entrevista
+            </a>
+          )
+        }
+      />
+
+      {demo !== null && simulated !== undefined && (
+        <SimulationNote summary={simulated} playing={demo.playingId === simulated.id} route={route} />
+      )}
+
+      {summaries === null ? (
+        <SkeletonCards cards={6} label="Carregando a esteira…" />
+      ) : (
+        <PipelineBoard
+          summaries={summaries}
+          route={route}
+          jobTitles={jobTitles}
+          playingId={demo?.playingId ?? null}
+          simulatedId={demo?.simulatedId ?? null}
+        />
+      )}
+
+      {summaries !== null && (
+        <section className="section" aria-labelledby="needs-title">
+          <div className="section__head">
+            <h2 id="needs-title">Esperando uma pessoa</h2>
+            <p className="section__lede">
+              Scorecards prontos. Os que têm citação não encontrada vêm primeiro: são os que mais
+              precisam de um olhar humano.
+            </p>
+          </div>
+          {awaiting.length === 0 ? (
+            <p className="muted">Nada esperando decisão agora.</p>
+          ) : (
+            <ul className="needs">
+              {awaiting.map((summary) => (
+                <NeedsRow
+                  key={summary.id}
+                  summary={summary}
+                  route={route}
+                  now={now}
+                  jobTitle={summary.jobId === null ? null : (jobTitles[summary.jobId] ?? summary.jobId)}
+                />
               ))}
             </ul>
           )}
-          {filtered.length > PREVIEW_LIMIT && (
-            <p className="muted">
-              e mais {filtered.length - PREVIEW_LIMIT} — veja a lista completa.
-            </p>
-          )}
-        </div>
-      </section>
+        </section>
+      )}
+
+      {summaries !== null && (
+        <section className="section section--quiet" aria-labelledby="numbers-title">
+          <div className="section__head section__head--row">
+            <div>
+              <h2 id="numbers-title">Em números</h2>
+              <p className="section__lede">
+                {metrics.scoredCount === 0
+                  ? 'Ainda não há scorecards no período.'
+                  : `${metrics.scoredCount} scorecards no período, nota média ${formatScore(metrics.averageScore)}. ${formatPercent(metrics.evidenceRate)} das citações conferidas foram encontradas na transcrição.`}
+              </p>
+            </div>
+            <label className="field-inline">
+              <span>Período</span>
+              <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodKey)}>
+                {Object.entries(PERIODS).map(([key, config]) => (
+                  <option key={key} value={key}>
+                    {config.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="numbers">
+            <div className="numbers__item">
+              <h3 className="numbers__title">Notas atribuídas, de 1 a 5</h3>
+              <BarChart
+                title="Distribuição das notas atribuídas, de 1 a 5 na escala BARS"
+                labelHeader="Nota"
+                valueHeader="Avaliações"
+                unit=" avaliações"
+                data={metrics.scoreDistribution.map((count, index) => ({
+                  label: `nota ${index + 1}`,
+                  value: count,
+                  color: `var(--chart-${index + 1})`,
+                  description: `Nota ${index + 1}`,
+                }))}
+              />
+            </div>
+            <div className="numbers__item">
+              <h3 className="numbers__title">Citações conferidas</h3>
+              <RateGauge
+                rate={metrics.evidenceRate}
+                caption="encontradas na transcrição"
+                title="Resultado da verificação de evidência no período"
+                segments={[
+                  { label: 'Encontradas', value: metrics.evidence.verified, color: 'var(--ok)' },
+                  {
+                    label: 'Não encontradas',
+                    value: metrics.evidence.unverified,
+                    color: 'var(--danger)',
+                  },
+                  {
+                    label: 'Sem verificação',
+                    value: metrics.evidence.unchecked,
+                    color: 'var(--neutral)',
+                  },
+                ]}
+              />
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
 
-function Stat({
-  label,
-  value,
-  hint,
-  tone,
+function SimulationNote({
+  summary,
+  playing,
+  route,
 }: {
-  label: string;
-  value: string;
-  hint: string;
-  tone: 'ok' | 'warn' | 'danger' | 'neutral';
+  summary: InterviewSummary;
+  playing: boolean;
+  route: Route;
 }) {
+  const meta = statusMeta(summary.status);
   return (
-    <div className={`stat stat--${tone}`}>
-      <p className="stat__label">{label}</p>
-      <p className="stat__value">{value}</p>
-      <p className="stat__hint">{hint}</p>
-    </div>
+    <p className={`sim-note ${playing ? 'is-playing' : ''}`} role="status">
+      <span className="sim-note__pulse" aria-hidden="true" />
+      {playing ? (
+        <span>
+          Nova entrevista na esteira: <strong>{meta.label}</strong>. {meta.description}
+        </span>
+      ) : summary.status === 'aguardando_aprovacao' ? (
+        <span>
+          <strong>{summary.candidateName ?? 'A nova entrevista'}</strong> está pronta para revisão
+          {summary.hasEvidenceAlert && ' — e o scorecard traz uma citação que não está na transcrição'}
+          .{' '}
+          <a
+            href={hrefFor({
+              mode: route.mode,
+              name: 'interview',
+              id: summary.id,
+              clockAnchor: route.clockAnchor,
+            })}
+          >
+            Abrir o scorecard
+          </a>
+        </span>
+      ) : (
+        <span>
+          A entrevista simulada está em <strong>{meta.label}</strong>.
+        </span>
+      )}
+    </p>
   );
 }
 
-function QueueRow({
+function NeedsRow({
   summary,
   route,
   now,
+  jobTitle,
 }: {
   summary: InterviewSummary;
   route: Route;
   now: number;
+  jobTitle: string | null;
 }) {
+  const checked = summary.evidence.verified + summary.evidence.unverified;
   return (
-    <li className="queue__item">
+    <li className={`needs__item ${summary.hasEvidenceAlert ? 'needs__item--alert' : ''}`}>
       <a
-        className="queue__link"
-        href={hrefFor({
-          mode: route.mode,
-          name: 'interview',
-          id: summary.id,
-          clockAnchor: route.clockAnchor,
-        })}
+        className="needs__link"
+        href={hrefFor({ mode: route.mode, name: 'interview', id: summary.id, clockAnchor: route.clockAnchor })}
       >
-        <span className="queue__who">
-          <strong>{summary.candidateName ?? 'Sem scorecard'}</strong>
-          <span className="muted">{summary.jobId ?? shortId(summary.id)}</span>
+        <span className="needs__who">
+          <span className="needs__name">{summary.candidateName ?? 'Sem nome'}</span>
+          <span className="needs__job">{jobTitle ?? 'Sem vaga'}</span>
         </span>
-        <span className="queue__signals">
-          {summary.hasEvidenceAlert && (
-            <span className="chip chip--danger">
-              <Icon name="alert" />
-              evidência
-            </span>
-          )}
-          {summary.recommendation !== null && (
-            <span className="chip chip--muted">{summary.recommendation}</span>
-          )}
+        <span className={`needs__evidence ${summary.hasEvidenceAlert ? 'is-alert' : 'is-ok'}`}>
+          <Icon name={summary.hasEvidenceAlert ? 'alert' : 'check'} />
+          {summary.hasEvidenceAlert
+            ? `${summary.evidence.unverified} de ${checked} citações não encontradas`
+            : checked === 0
+              ? 'citações sem verificação automática'
+              : `${summary.evidence.verified} de ${checked} citações encontradas`}
         </span>
-        <StatusBadge status={summary.status} size="sm" />
-        <span className="queue__age">
-          há {formatDuration(msSinceUpdate(summary, now))} sem mudança
+        <span className="needs__meta">
+          média {formatScore(summary.averageScore)} · esperando há{' '}
+          {formatDuration(msSinceUpdate(summary, now))}
         </span>
+        <Icon name="arrowRight" className="needs__go" />
       </a>
     </li>
   );
