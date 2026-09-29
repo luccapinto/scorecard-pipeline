@@ -89,6 +89,22 @@ const press = async (locator, options) => {
   await d.click(locator, options);
 };
 /**
+ * Points at the text itself. A block-level line, or a row of buttons, is as
+ * wide as its container, and its centre is empty space to the right of what
+ * the caption talks about.
+ */
+const aimText = async (locator, ms) => {
+  await d.reveal(locator);
+  await settle();
+  const { x, y } = await locator.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const r = range.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await d.moveTo(x, y, ms);
+};
+/**
  * The masthead is sticky, so its links are always on screen — but they sit
  * above the director's top inset, and its visibility check would scroll the
  * page to "reveal" them. Move and click without touching the scroll.
@@ -128,8 +144,6 @@ await press(page.getByRole('link', { name: /Explorar por conta própria/ }).firs
 
 // ── 2 · The pipeline, and a new interview going through it ──────────
 await page.locator('.board__stages').waitFor();
-// The SPA keeps the landing page's scroll offset; a person would scroll up.
-await d.scrollTop();
 await d.caption('Esteira', 'Cada entrevista num estado real do backend — e a esteira para antes da decisão');
 await d.hold(400);
 await aim(page.locator('.stage--aguardando_aprovacao .stage__label'), 900);
@@ -138,13 +152,14 @@ await d.caption('Nova entrevista', 'Uma gravação chega pelo webhook e um worke
 await press(page.getByRole('button', { name: 'Simular nova entrevista' }));
 // Each stage is its own wait: the card must really be in that column. The
 // cursor follows along the column headers — the card itself is moving, so a
-// box measured on it would be stale by the time the cursor got there.
+// box measured on it would be stale by the time the cursor got there. Every
+// stage, so the cursor never trails a column behind the card.
 const fresh = (stage) => page.locator(`.stage--${stage} .bcard--fresh`);
 const label = (stage) => page.locator(`.stage--${stage} .stage__label`);
-await fresh('recebida').waitFor();
-await aim(label('recebida'), 700);
-await fresh('diarizando').waitFor();
-await aim(label('diarizando'), 700);
+for (const stage of ['recebida', 'transcrevendo', 'diarizando']) {
+  await fresh(stage).waitFor();
+  await aim(label(stage), 600);
+}
 await fresh('pontuando').waitFor();
 await d.caption('Pontuação', 'Um LLM aplica a rubrica da vaga — e cada citação é conferida no texto');
 await aim(label('pontuando'), 600);
@@ -161,7 +176,6 @@ await press(ready.getByRole('link', { name: 'Abrir o scorecard' }));
 // ── 3 · The scorecard: a score means its rubric anchor ──────────────
 const firstCompetency = page.locator('li.competency').first();
 await firstCompetency.waitFor();
-await d.scrollTop();
 // Whose scorecard, and the verdict in one line, before the details.
 await d.caption('Scorecard', 'Nota de 1 a 5 por competência, com o texto da rubrica BARS por trás do nível');
 await aim(page.locator('.verdict__item--alert'), 800);
@@ -214,26 +228,24 @@ await d.hold(2000);
 await d.caption('Slack', 'O time recebe o mesmo scorecard em Block Kit — com o alerta em cada citação');
 await clickNav(mainNav('Por dentro'));
 await page.locator('.hop').first().waitFor();
-// The tabs sit at the top; the click below scrolls up to them on its own.
+// A new page opens at its top, tabs included.
 await press(insideNav('Slack e integrações'));
 await page.locator('.slack__message').waitFor();
-await d.scrollTop();
 await d.hold(300);
 // An interview still awaiting a decision, so the message carries its buttons.
 await d.choose(page.locator('.panel__head select'), { label: 'Bruno Exemplo' }, 800);
 await page.locator('.slack__header', { hasText: 'Bruno Exemplo' }).waitFor();
 await d.hold(700);
-await aim(page.locator('.slack__line', { hasText: 'ALERTA' }).first(), 900);
+await aimText(page.locator('.slack__line', { hasText: 'ALERTA' }).first(), 900);
 await d.hold(1900);
 await d.caption('Slack', 'Enquanto a decisão está pendente, os botões levam um token de uso único');
-await aim(page.locator('.slack__actions'), 900);
+await aimText(page.locator('.slack__actions'), 900);
 await d.hold(1900);
 
 // ── 8 · Behind the product ──────────────────────────────────────────
 await d.caption('Por dentro', 'FastAPI, fila Redis/RQ e um worker com máquina de estados — cada etapa ligada ao código');
 await press(insideNav('Como funciona'));
 await page.locator('.hop').first().waitFor();
-await d.scrollTop();
 await d.hold(500);
 // Framed, so the first row of file links sits clear of the caption.
 await d.frame(page.locator('.arch__hops'));
@@ -248,7 +260,7 @@ await d.hold(2100);
 // Short on purpose: stopping the screencast adds a few seconds of this frame.
 await d.caption('', '');
 await d.card(
-  `<h1>Scorecard Pipeline</h1><p>FastAPI · Redis + RQ · PostgreSQL · Deepgram ou WhisperX · OpenRouter · React 19 + TypeScript</p><small>github.com/luccapinto/scorecard-pipeline · luccapinto.github.io/scorecard-pipeline</small>`,
+  `<h1>Scorecard Pipeline</h1><p>FastAPI · Redis + RQ · PostgreSQL · Deepgram ou WhisperX<br>OpenRouter · React 19 + TypeScript</p><small>github.com/luccapinto/scorecard-pipeline · luccapinto.github.io/scorecard-pipeline</small>`,
   1300,
 );
 
