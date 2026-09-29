@@ -56,6 +56,50 @@ page.setDefaultTimeout(15000);
 const mainNav = (label) => page.locator('.main-nav__link', { hasText: label });
 const insideNav = (label) => page.locator('.inside-nav__link', { hasText: label });
 
+/**
+ * Resolves once the page has stopped scrolling. A smooth scroll over a long
+ * distance outlasts the director's fixed wait, and a box measured mid-scroll
+ * sends the cursor to where the element USED to be.
+ */
+const settle = () =>
+  page.evaluate(
+    () =>
+      new Promise((done) => {
+        let last = -1;
+        let still = 0;
+        const tick = () => {
+          still = window.scrollY === last ? still + 1 : 0;
+          last = window.scrollY;
+          if (still >= 6) done();
+          else requestAnimationFrame(tick);
+        };
+        tick();
+      }),
+  );
+/** `pointAt`, measured only after any scroll it causes has finished. */
+const aim = async (locator, ms) => {
+  await d.reveal(locator);
+  await settle();
+  await d.pointAt(locator, ms);
+};
+/** `click`, with the same guarantee. */
+const press = async (locator, options) => {
+  await d.reveal(locator);
+  await settle();
+  await d.click(locator, options);
+};
+/**
+ * The masthead is sticky, so its links are always on screen — but they sit
+ * above the director's top inset, and its visibility check would scroll the
+ * page to "reveal" them. Move and click without touching the scroll.
+ */
+const clickNav = async (locator) => {
+  const box = await locator.boundingBox();
+  await d.moveTo(box.x + box.width / 2, box.y + box.height / 2, 750);
+  await d.hold(180);
+  await locator.click({ delay: 70 });
+};
+
 // ── 0 · Title ───────────────────────────────────────────────────────
 // The pinned clock makes every relative date ("gravada há 3 h") the same on
 // every take.
@@ -71,16 +115,16 @@ await d.card(null, 700);
 
 // ── 1 · Landing: the argument in one screen ─────────────────────────
 await d.caption('A proposta', 'O modelo citou uma frase que o candidato nunca disse — e o sistema pegou');
-await d.pointAt(page.locator('.specimen__quote'), 900);
+await aim(page.locator('.specimen__quote'), 900);
 await d.hold(1500);
-await d.pointAt(page.locator('.specimen__stamp'), 600);
+await aim(page.locator('.specimen__stamp'), 600);
 await d.hold(700);
-await d.pointAt(page.locator('.specimen__nearest'), 700);
+await aim(page.locator('.specimen__nearest'), 700);
 await d.hold(1500);
 await d.caption('Como explorar', 'Tour guiado de 2 minutos ou exploração livre — tudo no navegador');
-await d.pointAt(page.getByRole('button', { name: /Fazer o tour guiado/ }).first(), 800);
+await aim(page.getByRole('button', { name: /Fazer o tour guiado/ }).first(), 800);
 await d.hold(1300);
-await d.click(page.getByRole('link', { name: /Explorar por conta própria/ }).first());
+await press(page.getByRole('link', { name: /Explorar por conta própria/ }).first());
 
 // ── 2 · The pipeline, and a new interview going through it ──────────
 await page.locator('.board__stages').waitFor();
@@ -88,31 +132,31 @@ await page.locator('.board__stages').waitFor();
 await d.scrollTop();
 await d.caption('Esteira', 'Cada entrevista num estado real do backend — e a esteira para antes da decisão');
 await d.hold(400);
-await d.pointAt(page.locator('.stage--aguardando_aprovacao .stage__label'), 900);
+await aim(page.locator('.stage--aguardando_aprovacao .stage__label'), 900);
 await d.hold(1800);
 await d.caption('Nova entrevista', 'Uma gravação chega pelo webhook e um worker a leva etapa por etapa');
-await d.click(page.getByRole('button', { name: 'Simular nova entrevista' }));
+await press(page.getByRole('button', { name: 'Simular nova entrevista' }));
 // Each stage is its own wait: the card must really be in that column. The
 // cursor follows along the column headers — the card itself is moving, so a
 // box measured on it would be stale by the time the cursor got there.
 const fresh = (stage) => page.locator(`.stage--${stage} .bcard--fresh`);
 const label = (stage) => page.locator(`.stage--${stage} .stage__label`);
 await fresh('recebida').waitFor();
-await d.pointAt(label('recebida'), 700);
+await aim(label('recebida'), 700);
 await fresh('diarizando').waitFor();
-await d.pointAt(label('diarizando'), 700);
+await aim(label('diarizando'), 700);
 await fresh('pontuando').waitFor();
 await d.caption('Pontuação', 'Um LLM aplica a rubrica da vaga — e cada citação é conferida no texto');
-await d.pointAt(label('pontuando'), 600);
+await aim(label('pontuando'), 600);
 await fresh('aguardando_aprovacao').waitFor();
-await d.pointAt(fresh('aguardando_aprovacao'), 800);
+await aim(fresh('aguardando_aprovacao'), 800);
 await d.hold(1000);
 const ready = page.locator('.sim-note', { hasText: 'pronta para revisão' });
 await ready.waitFor();
 await d.caption('Para numa pessoa', 'Scorecard pronto — e ele traz uma citação que não está na transcrição');
-await d.pointAt(ready, 800);
+await aim(ready, 800);
 await d.hold(1800);
-await d.click(ready.getByRole('link', { name: 'Abrir o scorecard' }));
+await press(ready.getByRole('link', { name: 'Abrir o scorecard' }));
 
 // ── 3 · The scorecard: a score means its rubric anchor ──────────────
 const firstCompetency = page.locator('li.competency').first();
@@ -120,31 +164,31 @@ await firstCompetency.waitFor();
 await d.scrollTop();
 // Whose scorecard, and the verdict in one line, before the details.
 await d.caption('Scorecard', 'Nota de 1 a 5 por competência, com o texto da rubrica BARS por trás do nível');
-await d.pointAt(page.locator('.verdict__item--alert'), 800);
+await aim(page.locator('.verdict__item--alert'), 800);
 await d.hold(1200);
 await d.frame(firstCompetency);
-await d.pointAt(firstCompetency.locator('.score__value'), 700);
+await aim(firstCompetency.locator('.score__value'), 700);
 await d.hold(900);
-await d.pointAt(firstCompetency.locator('.competency__anchor'), 700);
+await aim(firstCompetency.locator('.competency__anchor'), 700);
 await d.hold(2200);
 
 // ── 4 · The alarm the whole system exists for ───────────────────────
 const flagged = page.locator('li.competency--flagged').first();
 await d.caption('Alarme', 'Esta frase não está na transcrição: o sistema acusa e mostra o trecho mais parecido');
 await d.frame(flagged);
-await d.pointAt(flagged.locator('.quote__text'), 800);
+await aim(flagged.locator('.quote__text'), 800);
 await d.hold(1800);
-await d.pointAt(flagged.locator('.evidence__nearest'), 700);
+await aim(flagged.locator('.evidence__nearest'), 700);
 await d.hold(2300);
 
 // ── 5 · A verified citation leads to the transcript ─────────────────
 await d.caption('Evidência', 'Citação verificada leva ao trecho exato da transcrição, marcado para conferir');
 await d.frame(firstCompetency);
-await d.click(firstCompetency.getByRole('link', { name: 'Ver na transcrição' }));
+await press(firstCompetency.getByRole('link', { name: 'Ver na transcrição' }));
 const mark = page.locator('li.turn--highlight mark.turn__mark');
 await mark.waitFor();
 await d.hold(600);
-await d.pointAt(mark, 800);
+await aim(mark, 800);
 await d.hold(2300);
 
 // ── 6 · A person decides, in two steps ──────────────────────────────
@@ -152,26 +196,26 @@ const decision = page.locator('[data-tour="decision"]');
 await d.caption('Decisão humana', 'A IA recomenda, uma pessoa decide: duas etapas, com o alerta repetido na hora');
 await d.frame(decision);
 await d.hold(500);
-await d.click(decision.getByRole('button', { name: 'Aprovar' }));
+await press(decision.getByRole('button', { name: 'Aprovar' }));
 const warning = decision.locator('.decision__confirm-warning');
 await warning.waitFor();
-await d.pointAt(warning, 700);
+await aim(warning, 700);
 await d.hold(1900);
-await d.click(decision.getByRole('button', { name: 'Confirmar aprovar' }));
+await press(decision.getByRole('button', { name: 'Confirmar aprovar' }));
 await page.locator('.detail-head .status', { hasText: 'Aprovada' }).waitFor();
 const audit = decision.locator('.audit__what').first();
 await audit.waitFor();
 await d.caption('Registro', 'Aprovada — e a trilha de auditoria (sintética na demo) mostra quem decidiu');
-await d.pointAt(audit, 800);
+await aim(audit, 800);
 await d.hold(2000);
 
 // ── 7 · The Slack message ───────────────────────────────────────────
 // Caption first, so the previous scene's caption never sits over a new screen.
 await d.caption('Slack', 'O time recebe o mesmo scorecard em Block Kit — com o alerta em cada citação');
-await d.click(mainNav('Por dentro'));
+await clickNav(mainNav('Por dentro'));
 await page.locator('.hop').first().waitFor();
 // The tabs sit at the top; the click below scrolls up to them on its own.
-await d.click(insideNav('Slack e integrações'));
+await press(insideNav('Slack e integrações'));
 await page.locator('.slack__message').waitFor();
 await d.scrollTop();
 await d.hold(300);
@@ -179,30 +223,33 @@ await d.hold(300);
 await d.choose(page.locator('.panel__head select'), { label: 'Bruno Exemplo' }, 800);
 await page.locator('.slack__header', { hasText: 'Bruno Exemplo' }).waitFor();
 await d.hold(700);
-await d.pointAt(page.locator('.slack__line', { hasText: 'ALERTA' }).first(), 900);
+await aim(page.locator('.slack__line', { hasText: 'ALERTA' }).first(), 900);
 await d.hold(1900);
 await d.caption('Slack', 'Enquanto a decisão está pendente, os botões levam um token de uso único');
-await d.pointAt(page.locator('.slack__actions'), 900);
+await aim(page.locator('.slack__actions'), 900);
 await d.hold(1900);
 
 // ── 8 · Behind the product ──────────────────────────────────────────
 await d.caption('Por dentro', 'FastAPI, fila Redis/RQ e um worker com máquina de estados — cada etapa ligada ao código');
-await d.click(insideNav('Como funciona'));
+await press(insideNav('Como funciona'));
 await page.locator('.hop').first().waitFor();
 await d.scrollTop();
-await d.hold(600);
-await d.pointAt(page.locator('.hop__file', { hasText: 'app/tasks.py' }), 900);
+await d.hold(500);
+// Framed, so the first row of file links sits clear of the caption.
+await d.frame(page.locator('.arch__hops'));
+await aim(page.locator('.hop__file', { hasText: 'app/tasks.py' }), 900);
 await d.hold(2100);
 await d.caption('Por dentro', 'Nenhuma transição sai de “aguardando aprovação” sem uma pessoa');
 await d.frame(page.locator('.states'));
-await d.pointAt(page.locator('.states__stop'), 700);
+await aim(page.locator('.states__stop'), 700);
 await d.hold(2100);
 
 // ── 9 · Outro ───────────────────────────────────────────────────────
+// Short on purpose: stopping the screencast adds a few seconds of this frame.
 await d.caption('', '');
 await d.card(
   `<h1>Scorecard Pipeline</h1><p>FastAPI · Redis + RQ · PostgreSQL · Deepgram ou WhisperX · OpenRouter · React 19 + TypeScript</p><small>github.com/luccapinto/scorecard-pipeline · luccapinto.github.io/scorecard-pipeline</small>`,
-  3200,
+  1300,
 );
 
 await d.finish(OUT);
