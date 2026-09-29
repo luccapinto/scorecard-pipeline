@@ -243,9 +243,11 @@ item. Três medidas:
 ### Orçamento de bundle
 
 **≤ 180 KB gzip** no carregamento inicial, verificado por `npm run check:size`
-e no CI para as duas edições. Hoje: **~118 KB** no build normal e **~113 KB** no
-showcase (JS + CSS + HTML da rota inicial). O modo demonstração e o funil são
-chunks separados e não contam — quem usa o modo API não baixa nenhum deles.
+e no CI para as duas edições. Hoje: **~119 KB** no build normal (JS + CSS + HTML
+da rota inicial) e **~125 KB** no showcase. O showcase conta também o chunk do
+modo demonstração, porque não mostra nada sem ele e todo visitante o baixa. No
+build normal, o modo demonstração e o funil são chunks separados e não contam —
+quem usa o modo API não baixa nenhum deles.
 
 As **fontes** são auto-hospedadas (pacotes `@fontsource-variable`, empacotadas
 pelo Vite): nada de Google Fonts ou CDN, que seria a primeira requisição de rede
@@ -295,7 +297,7 @@ pessoas.
 
 ## Testes
 
-Vitest + Testing Library (jsdom). **299 testes**, em dois projetos: `app` (o
+Vitest + Testing Library (jsdom). **300 testes**, em dois projetos: `app` (o
 build normal) e `showcase` (a aplicação compilada com a constante do build
 público ligada).
 

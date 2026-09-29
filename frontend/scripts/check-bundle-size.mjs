@@ -4,9 +4,14 @@
 // "Initial load" is defined precisely, because a budget measured on the wrong
 // set of files is theatre: it is the document plus exactly the assets that
 // index.html tells the browser to fetch before first paint — the entry script,
-// its <link rel=modulepreload> dependencies, and the stylesheets. Chunks that
-// are only reachable through a dynamic import (the whole demo module, the
-// funnel board) are excluded, which is the point of splitting them out.
+// its <link rel=modulepreload> dependencies, and the stylesheets — plus any
+// lazy chunk a build ALWAYS loads before it can show content. Chunks that are
+// only reachable on some routes (the demo module in the full build, the funnel
+// board) are excluded, which is the point of splitting them out.
+//
+// The showcase is the case of that "always": it renders nothing but the
+// demonstration, so every visitor downloads the DemoProvider chunk before the
+// first screen. Leaving it out would understate the public page's real cost.
 //
 // Web fonts are reported separately and not counted: they are already
 // compressed (woff2, so gzip does nothing), they load in parallel with
@@ -26,8 +31,9 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const BUILDS = [
-  { name: 'full', dir: resolve(here, '../dist') },
-  { name: 'showcase', dir: resolve(here, '../dist-showcase') },
+  { name: 'full', dir: resolve(here, '../dist'), alwaysLoaded: [] },
+  // ShowcaseApp mounts the lazy DemoProvider unconditionally (src/App.tsx).
+  { name: 'showcase', dir: resolve(here, '../dist-showcase'), alwaysLoaded: [/^DemoProvider-.*\.js$/] },
 ];
 
 /** Budget in bytes, gzipped. Stated in frontend/README.md. */
@@ -36,7 +42,7 @@ const BUDGET_BYTES = 180 * 1024;
 const kib = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
 
 /** Returns false when the build is over budget or malformed. */
-function check({ name, dir }) {
+function check({ name, dir, alwaysLoaded }) {
   const html = readFileSync(join(dir, 'index.html'), 'utf8');
 
   // Assets the document itself pulls in before first paint.
@@ -51,6 +57,15 @@ function check({ name, dir }) {
       referenced.add(match[1].replace(/^\.?\//, ''));
       match = pattern.exec(html);
     }
+  }
+
+  for (const pattern of alwaysLoaded) {
+    const chunk = readdirSync(join(dir, 'assets')).find((file) => pattern.test(file));
+    if (chunk === undefined) {
+      console.error(`[${name}] expected an always-loaded chunk matching ${pattern} — did the split change?`);
+      return false;
+    }
+    referenced.add(`assets/${chunk}`);
   }
 
   if (referenced.size === 0) {

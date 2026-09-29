@@ -396,9 +396,9 @@ screen explains itself in one line. The interface is in Portuguese.
 Each interview sits in its real backend state, left to right, and the pipeline
 stops in front of a person. **"Simular nova entrevista"** (simulate a new
 interview) sends a synthetic recording through the same webhook and walks it
-through every stage, one step at
-a time — nothing moves unless someone asks, and the state is still a pure
-function of (clock anchor, actions), so every screenshot is reproducible.
+through every stage, one step at a time — nothing moves unless someone asks, and
+the state is still a pure function of (clock anchor, actions), so every
+screenshot is reproducible.
 
 ![The pipeline board](docs/assets/esteira.png)
 
@@ -485,13 +485,14 @@ encodes it with ffmpeg. The MP4 is hosted as a GitHub attachment, not committed.
 
 ### Quality gates
 
-Enforced by the `frontend` CI job: TypeScript `strict`, **299 tests** (Vitest +
+Enforced by the `frontend` CI job: TypeScript `strict`, **300 tests** (Vitest +
 Testing Library, including a project that compiles the app as the showcase and
 tests the public bundle as built), a WCAG AA contrast check over the design
 tokens in both themes, an **axe-core audit of every screen and every tour step ×
 2 themes on both builds**, the showcase bundle check, and a **≤ 180 KB gzipped**
-initial-load budget on both builds (currently ~118 KB full, ~113 KB showcase;
-the demo dataset is a separate chunk that API-mode users never download).
+initial-load budget on both builds (currently ~119 KB full; ~125 KB showcase,
+which always loads the demo dataset chunk — API-mode users of the full build
+never download it).
 Runtime dependencies: `react`, `react-dom` and three self-hosted font packages.
 
 ---
