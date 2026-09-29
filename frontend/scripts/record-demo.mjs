@@ -105,17 +105,16 @@ const aimText = async (locator, ms) => {
   await d.moveTo(x, y, ms);
 };
 /**
- * The masthead is sticky, so its links are always on screen — but they sit
- * above the director's top inset, and its visibility check would scroll the
- * page to "reveal" them. Clear the inset for this one click.
+ * The masthead is sticky, so its links are always on screen — but the
+ * director's `reveal` requires `top >= topInset + 8`, and a nav link spans
+ * the masthead from y = 0, so even with the inset cleared it counts as
+ * hidden and `scrollIntoView` drags the page. Move and click without it.
  */
 const clickNav = async (locator) => {
-  d.topInset = 0;
-  try {
-    await d.click(locator, { ms: 750 });
-  } finally {
-    d.topInset = MASTHEAD;
-  }
+  const box = await locator.boundingBox();
+  await d.moveTo(box.x + box.width / 2, box.y + box.height / 2, 750);
+  await d.hold(180);
+  await locator.click({ delay: 70 });
 };
 
 // ── 0 · Title ───────────────────────────────────────────────────────
