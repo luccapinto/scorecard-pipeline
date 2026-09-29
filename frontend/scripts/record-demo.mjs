@@ -107,13 +107,15 @@ const aimText = async (locator, ms) => {
 /**
  * The masthead is sticky, so its links are always on screen — but they sit
  * above the director's top inset, and its visibility check would scroll the
- * page to "reveal" them. Move and click without touching the scroll.
+ * page to "reveal" them. Clear the inset for this one click.
  */
 const clickNav = async (locator) => {
-  const box = await locator.boundingBox();
-  await d.moveTo(box.x + box.width / 2, box.y + box.height / 2, 750);
-  await d.hold(180);
-  await locator.click({ delay: 70 });
+  d.topInset = 0;
+  try {
+    await d.click(locator, { ms: 750 });
+  } finally {
+    d.topInset = MASTHEAD;
+  }
 };
 
 // ── 0 · Title ───────────────────────────────────────────────────────
@@ -174,7 +176,7 @@ await d.pointAt(fresh('aguardando_aprovacao'), 700);
 await d.hold(1000);
 const ready = page.locator('.sim-note', { hasText: 'pronta para revisão' });
 await ready.waitFor();
-await d.caption('Para numa pessoa', 'Scorecard pronto — e ele traz uma citação que não está na transcrição');
+await d.caption('Revisão', 'Scorecard pronto — e ele traz uma citação que não está na transcrição');
 await aim(ready, 800);
 await d.hold(1800);
 await press(ready.getByRole('link', { name: 'Abrir o scorecard' }));
@@ -263,11 +265,12 @@ await aim(page.locator('.states__stop'), 700);
 await d.hold(2100);
 
 // ── 9 · Outro ───────────────────────────────────────────────────────
-// Short on purpose: stopping the screencast adds a few seconds of this frame.
+// The card is on screen for ~4 s: this wait plus the fade-in and the fraction
+// of a second the screencast adds on stop (measured on take 5: 1.3 s → 1.9 s).
 await d.caption('', '');
 await d.card(
   `<h1>Scorecard Pipeline</h1><p>FastAPI · Redis + RQ · PostgreSQL · Deepgram ou WhisperX<br>OpenRouter · React 19 + TypeScript</p><small>github.com/luccapinto/scorecard-pipeline · luccapinto.github.io/scorecard-pipeline</small>`,
-  1300,
+  3400,
 );
 
 await d.finish(OUT);
