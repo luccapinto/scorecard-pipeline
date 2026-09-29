@@ -1,35 +1,41 @@
 #!/usr/bin/env node
 // Records the product demo video embedded in the README.
 //
-// Runs against DEMO mode for the same reason the screenshots do: it is
+// Runs against the SHOWCASE build — the public demo, which is what a visitor
+// actually sees — for the same reasons the screenshots do: it is
 // deterministic, needs no backend, and every screen has data. The video says
-// so on screen — the demo banner is in every frame and the title card names
-// the dataset as synthetic.
+// so on screen: the title card names the dataset as synthetic, and the
+// "Dados fictícios" mark is in the header of every app frame.
+//
+// There is no LLM in the demonstration, so there is no real wait to
+// fast-forward: every animation in the video (the new interview walking the
+// pipeline, the smooth scrolls) plays at the speed the product plays it.
 //
 // Usage:
-//   npm run build
-//   npm run preview &            # or PREVIEW_URL=... npm run demo-video
-//   npm run demo-video
+//   npm run build:showcase
+//   npm run preview:showcase -- --port 4191 &   # or PREVIEW_URL=... npm run demo-video
+//   PREVIEW_URL=http://127.0.0.1:4191 npm run demo-video
 //
-// Output (not committed): docs/demo/demo.mp4 — the README version, under
+// Output (not committed): docs/demo/demo.mp4 — the README version, 1080p under
 // GitHub's 10 MB attachment limit — and docs/demo/demo-linkedin.mp4, the
-// full-quality 2560×1440 file for social posts.
-// Needs ffmpeg on PATH.
+// 2560×1440 CRF 16 file for social posts. Needs ffmpeg on PATH.
 
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 import { Director, SCALE, VIEWPORT } from './demo/director.mjs';
-import { urlFor } from './routes.mjs';
+import { BASE_URL, CLOCK_ANCHOR } from './routes.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = {
   readme: resolve(here, '../../docs/demo/demo.mp4'),
   linkedin: resolve(here, '../../docs/demo/demo-linkedin.mp4'),
 };
-/** Height of the sticky top bar at the recording viewport. */
-const TOPBAR = 78;
+/** Height of the sticky masthead at the recording viewport. */
+const MASTHEAD = 62;
+/** The highlighter of the visual identity: ripples, caption labels, card glow. */
+const ACCENT = '#e8c33a';
 
 const browser = await chromium.launch();
 const context = await browser.newContext({
@@ -41,148 +47,162 @@ const context = await browser.newContext({
   timezoneId: 'America/Sao_Paulo',
 });
 await context.addInitScript(() => {
-  localStorage.setItem(
-    'scorecard-pipeline.prefs',
-    JSON.stringify({ theme: 'light', pollIntervalMs: 5000, lastMode: 'demo' }),
-  );
+  localStorage.setItem('scorecard-pipeline.prefs', JSON.stringify({ theme: 'light', pollIntervalMs: 5000 }));
 });
-const d = await Director.create(context, { topInset: TOPBAR });
+const d = await Director.create(context, { topInset: MASTHEAD, accent: ACCENT });
 const { page } = d;
 page.setDefaultTimeout(15000);
 
-const nav = (path) => page.locator(`.nav__link[href*="/demo/${path}"]`);
-const advance = page.getByRole('button', { name: 'Avançar esteira' });
-const status = page.locator('.view-head__title .status');
+const mainNav = (label) => page.locator('.main-nav__link', { hasText: label });
+const insideNav = (label) => page.locator('.inside-nav__link', { hasText: label });
 
 // ── 0 · Title ───────────────────────────────────────────────────────
-await d.goto(urlFor({ path: 'esteira' }));
+// The pinned clock makes every relative date ("gravada há 3 h") the same on
+// every take.
+await d.goto(`${BASE_URL}/#/?t=${CLOCK_ANCHOR}`);
 await d.card(
-  `<h1>Scorecard Pipeline</h1><p>Da gravação de uma entrevista técnica a um scorecard com evidências verificadas — e a decisão final é sempre humana.</p><small>Modo demonstração · dados sintéticos · roda inteiro no navegador</small>`,
+  `<h1>Scorecard Pipeline</h1><p>A IA avalia a entrevista, o sistema confere cada citação e uma pessoa decide.</p><small>Demonstração · dados sintéticos · roda inteiro no navegador</small>`,
 );
-await page.locator('.queue__item').first().waitFor();
-await d.hold(600);
+await page.locator('.specimen__quote').waitFor();
+await d.hold(800);
 await d.record();
-await d.hold(3000);
+await d.hold(2400);
 await d.card(null, 700);
 
-await d.caption('Esteira', 'Cada gravação é transcrita, diarizada e pontuada por IA — e para numa pessoa');
-await d.pointAt(page.getByText('Evidência verificada', { exact: true }).first(), 900);
-await d.hold(2200);
+// ── 1 · Landing: the argument in one screen ─────────────────────────
+await d.caption('A proposta', 'O modelo citou uma frase que o candidato nunca disse — e o sistema pegou');
+await d.pointAt(page.locator('.specimen__quote'), 900);
+await d.hold(1500);
+await d.pointAt(page.locator('.specimen__stamp'), 600);
+await d.hold(700);
+await d.pointAt(page.locator('.specimen__nearest'), 700);
+await d.hold(1500);
+await d.caption('Como explorar', 'Tour guiado de 2 minutos ou exploração livre — tudo no navegador');
+await d.pointAt(page.getByRole('button', { name: /Fazer o tour guiado/ }).first(), 800);
+await d.hold(1300);
+await d.click(page.getByRole('link', { name: /Explorar por conta própria/ }).first());
 
-// ── 2 · Ingestion ───────────────────────────────────────────────────
-await d.click(nav('nova'));
-await d.caption('Ingestão', 'Um webhook dispara o processamento — o JSON enviado aparece ao lado, ao vivo');
-await page.locator('.inspector__block').first().waitFor();
-await d.hold(900);
-const job = page.getByLabel('Vaga', { exact: true });
-await d.choose(job, { index: 1 }, 800);
-await d.hold(900);
-const recording = page.getByLabel('Gravação', { exact: true });
-const recordingValue = await recording.locator('option', { hasText: 'dados_senior' }).getAttribute('value');
-await d.choose(recording, recordingValue, 600);
-await d.hold(900);
-await d.click(page.getByRole('button', { name: 'Disparar webhook' }));
-await page.getByRole('heading', { name: '202 Accepted' }).waitFor();
-await d.caption('Ingestão', 'O 202 é um aceite: o processamento segue assíncrono, num worker');
-await d.hold(2000);
-await d.click(page.getByRole('link', { name: 'Abrir entrevista' }));
-await status.waitFor();
-await d.hold(800);
-
-// ── 3 · The pipeline advances ───────────────────────────────────────
-// One caption per stage: the status badge alone is too small to carry the story.
-const STAGES = [
-  'Transcrevendo: o áudio vira texto — pela API do Deepgram ou 100% local, com WhisperX',
-  'Diarizando: separa quem falou o quê, entrevistador e candidato',
-  'Pontuando: o LLM avalia cada competência na escala BARS, citando a transcrição',
-  'Aguardando aprovação: o scorecard está pronto — e a esteira para aqui',
-];
-await d.caption('Processamento', 'Na demonstração, a esteira avança uma etapa a cada clique');
-await d.pointAt(advance, 800);
-await d.hold(1200);
-for (const stage of STAGES) {
-  await d.click(advance, { ms: 200, pause: 80 });
-  await d.caption('Processamento', stage);
-  await d.hold(2100);
-}
-await page.locator('.scorecard').waitFor();
-await d.frame(page.locator('.scorecard'));
-await d.hold(1600);
-
-// ── 4 · Approval queue ──────────────────────────────────────────────
-await d.click(nav('aprovacoes'));
-await d.caption('Aprovações', 'Fila por tempo de espera, uma decisão por vez — sem aprovação em massa, por design');
-await page.locator('.approval').first().waitFor();
+// ── 2 · The pipeline, and a new interview going through it ──────────
+await page.locator('.board__stages').waitFor();
+// The SPA keeps the landing page's scroll offset; a person would scroll up.
 await d.scrollTop();
-await d.hold(1400);
-const bruno = page.locator('li.approval', { hasText: 'Bruno Exemplo' });
-await d.pointAt(bruno.locator('.approval__alert'), 800);
+await d.caption('Esteira', 'Cada entrevista num estado real do backend — e a esteira para antes da decisão');
+await d.hold(400);
+await d.pointAt(page.locator('.stage--aguardando_aprovacao .stage__label'), 900);
+await d.hold(1800);
+await d.caption('Nova entrevista', 'Uma gravação chega pelo webhook e um worker a leva etapa por etapa');
+await d.click(page.getByRole('button', { name: 'Simular nova entrevista' }));
+// Each stage is its own wait: the card must really be in that column. The
+// cursor follows along the column headers — the card itself is moving, so a
+// box measured on it would be stale by the time the cursor got there.
+const fresh = (stage) => page.locator(`.stage--${stage} .bcard--fresh`);
+const label = (stage) => page.locator(`.stage--${stage} .stage__label`);
+await fresh('recebida').waitFor();
+await d.pointAt(label('recebida'), 700);
+await fresh('diarizando').waitFor();
+await d.pointAt(label('diarizando'), 700);
+await fresh('pontuando').waitFor();
+await d.caption('Pontuação', 'Um LLM aplica a rubrica da vaga — e cada citação é conferida no texto');
+await d.pointAt(label('pontuando'), 600);
+await fresh('aguardando_aprovacao').waitFor();
+await d.pointAt(fresh('aguardando_aprovacao'), 800);
+await d.hold(1000);
+const ready = page.locator('.sim-note', { hasText: 'pronta para revisão' });
+await ready.waitFor();
+await d.caption('Para numa pessoa', 'Scorecard pronto — e ele traz uma citação que não está na transcrição');
+await d.pointAt(ready, 800);
+await d.hold(1800);
+await d.click(ready.getByRole('link', { name: 'Abrir o scorecard' }));
+
+// ── 3 · The scorecard: a score means its rubric anchor ──────────────
+const firstCompetency = page.locator('li.competency').first();
+await firstCompetency.waitFor();
+await d.scrollTop();
+// Whose scorecard, and the verdict in one line, before the details.
+await d.caption('Scorecard', 'Nota de 1 a 5 por competência, com o texto da rubrica BARS por trás do nível');
+await d.pointAt(page.locator('.verdict__item--alert'), 800);
+await d.hold(1200);
+await d.frame(firstCompetency);
+await d.pointAt(firstCompetency.locator('.score__value'), 700);
+await d.hold(900);
+await d.pointAt(firstCompetency.locator('.competency__anchor'), 700);
 await d.hold(2200);
 
-// ── 5 · The alarm the whole system exists for ───────────────────────
-await d.click(bruno.getByRole('link', { name: 'Abrir scorecard e decidir' }));
-await d.caption('Evidência', 'Cada citação do modelo é conferida na transcrição — a que não existe vira alarme');
-const alarm = page.locator('.evidence--alert').first();
-await alarm.waitFor();
-await d.hold(800);
-await d.frame(page.locator('li.competency', { has: alarm }).first());
-await d.pointAt(alarm.locator('.evidence__headline'), 800);
-await d.hold(1600);
-await d.pointAt(alarm.locator('.evidence__nearest'), 700);
-await d.hold(2400);
+// ── 4 · The alarm the whole system exists for ───────────────────────
+const flagged = page.locator('li.competency--flagged').first();
+await d.caption('Alarme', 'Esta frase não está na transcrição: o sistema acusa e mostra o trecho mais parecido');
+await d.frame(flagged);
+await d.pointAt(flagged.locator('.quote__text'), 800);
+await d.hold(1800);
+await d.pointAt(flagged.locator('.evidence__nearest'), 700);
+await d.hold(2300);
 
-// ── 6 · Verified quotes lead to the transcript ─────────────────────
-await d.caption('Transcrição', 'As citações verificadas levam direto ao trecho da fala');
-const verified = page.locator('li.competency', { hasText: 'Orquestração de Pipelines' });
-await d.click(verified.getByRole('button', { name: 'Ver na transcrição' }));
-await page.locator('li.turn--highlight').waitFor();
-await d.hold(1100);
-await d.pointAt(page.locator('mark.turn__mark').first(), 700);
-await d.hold(2400);
+// ── 5 · A verified citation leads to the transcript ─────────────────
+await d.caption('Evidência', 'Citação verificada leva ao trecho exato da transcrição, marcado para conferir');
+await d.frame(firstCompetency);
+await d.click(firstCompetency.getByRole('link', { name: 'Ver na transcrição' }));
+const mark = page.locator('li.turn--highlight mark.turn__mark');
+await mark.waitFor();
+await d.hold(600);
+await d.pointAt(mark, 800);
+await d.hold(2300);
 
-// ── 7 · A person decides ────────────────────────────────────────────
-const decision = page.getByRole('region', { name: 'Decisão' });
+// ── 6 · A person decides, in two steps ──────────────────────────────
+const decision = page.locator('[data-tour="decision"]');
+await d.caption('Decisão humana', 'A IA recomenda, uma pessoa decide: duas etapas, com o alerta repetido na hora');
 await d.frame(decision);
-await d.caption('Decisão humana', 'A IA recomenda; quem decide é uma pessoa — em duas etapas, com o aviso à vista');
+await d.hold(500);
 await d.click(decision.getByRole('button', { name: 'Aprovar' }));
-const warning = page.locator('.decision__confirm-warning');
+const warning = decision.locator('.decision__confirm-warning');
 await warning.waitFor();
 await d.pointAt(warning, 700);
-await d.hold(2200);
-await d.click(page.getByRole('button', { name: 'Confirmar aprovar' }));
-await status.filter({ hasText: 'Aprovada' }).waitFor();
-await d.hold(600);
-const audit = page.locator('.audit');
+await d.hold(1900);
+await d.click(decision.getByRole('button', { name: 'Confirmar aprovar' }));
+await page.locator('.detail-head .status', { hasText: 'Aprovada' }).waitFor();
+const audit = decision.locator('.audit__what').first();
 await audit.waitFor();
-await d.pointAt(audit.locator('.audit__what').first(), 800);
-await d.hold(2600);
+await d.caption('Registro', 'Aprovada — e a trilha de auditoria (sintética na demo) mostra quem decidiu');
+await d.pointAt(audit, 800);
+await d.hold(2000);
 
-// ── 8 · The Slack notification ──────────────────────────────────────
-await d.click(nav('integracoes'));
-await d.caption('Notificação', 'O Slack recebe o scorecard com o link de decisão — prévia fiel do payload real');
-const slack = page.locator('.slack__message');
-await slack.waitFor();
-await d.hold(600);
-await d.frame(page.locator('section', { has: slack }).last());
-await d.hold(1800);
-await d.click(page.getByRole('button', { name: 'Ver JSON bruto' }));
-await page.locator('pre.slack__json').waitFor();
-await d.hold(1800);
-
-// ── 9 · Both themes ─────────────────────────────────────────────────
-await d.click(nav('esteira'));
-await page.locator('.queue__item').first().waitFor();
+// ── 7 · The Slack message ───────────────────────────────────────────
+// Caption first, so the previous scene's caption never sits over a new screen.
+await d.caption('Slack', 'O time recebe o mesmo scorecard em Block Kit — com o alerta em cada citação');
+await d.click(mainNav('Por dentro'));
+await page.locator('.hop').first().waitFor();
+// The tabs sit at the top; the click below scrolls up to them on its own.
+await d.click(insideNav('Slack e integrações'));
+await page.locator('.slack__message').waitFor();
 await d.scrollTop();
-await d.caption('Temas', 'Tema escuro desenhado à parte — contraste WCAG AA verificado no CI');
-await d.hold(500);
-await d.click(page.getByRole('radiogroup', { name: 'Tema' }).getByRole('radio', { name: 'Tema escuro' }));
-await d.hold(2800);
+await d.hold(300);
+// An interview still awaiting a decision, so the message carries its buttons.
+await d.choose(page.locator('.panel__head select'), { label: 'Bruno Exemplo' }, 800);
+await page.locator('.slack__header', { hasText: 'Bruno Exemplo' }).waitFor();
+await d.hold(700);
+await d.pointAt(page.locator('.slack__line', { hasText: 'ALERTA' }).first(), 900);
+await d.hold(1900);
+await d.caption('Slack', 'Enquanto a decisão está pendente, os botões levam um token de uso único');
+await d.pointAt(page.locator('.slack__actions'), 900);
+await d.hold(1900);
 
-// ── 10 · Outro ──────────────────────────────────────────────────────
+// ── 8 · Behind the product ──────────────────────────────────────────
+await d.caption('Por dentro', 'FastAPI, fila Redis/RQ e um worker com máquina de estados — cada etapa ligada ao código');
+await d.click(insideNav('Como funciona'));
+await page.locator('.hop').first().waitFor();
+await d.scrollTop();
+await d.hold(600);
+await d.pointAt(page.locator('.hop__file', { hasText: 'app/tasks.py' }), 900);
+await d.hold(2100);
+await d.caption('Por dentro', 'Nenhuma transição sai de “aguardando aprovação” sem uma pessoa');
+await d.frame(page.locator('.states'));
+await d.pointAt(page.locator('.states__stop'), 700);
+await d.hold(2100);
+
+// ── 9 · Outro ───────────────────────────────────────────────────────
 await d.caption('', '');
 await d.card(
-  `<h1>Scorecard Pipeline</h1><p>FastAPI · Redis + RQ · Deepgram ou WhisperX · LLM · React 19</p><small>Teste ao vivo: luccapinto.github.io/scorecard-pipeline · github.com/luccapinto/scorecard-pipeline</small>`,
-  4000,
+  `<h1>Scorecard Pipeline</h1><p>FastAPI · Redis + RQ · PostgreSQL · Deepgram ou WhisperX · OpenRouter · React 19 + TypeScript</p><small>github.com/luccapinto/scorecard-pipeline · luccapinto.github.io/scorecard-pipeline</small>`,
+  3200,
 );
 
 await d.finish(OUT);
