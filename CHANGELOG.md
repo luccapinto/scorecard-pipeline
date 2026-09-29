@@ -78,6 +78,28 @@ versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
   (`npm run check:size`) — as três no job `frontend` do CI.
 - Script reproduzível de screenshots (`frontend/scripts/screenshots.mjs`) e
   galeria em `docs/assets/`, gerada a partir do modo demonstração.
+- **Build showcase da demo pública** (`npm run build:showcase`, publicado no
+  GitHub Pages): só a demonstração, sem modo API em lugar nenhum do bundle —
+  a constante `__SHOWCASE__` deixa o bundler apagar os ramos do modo API.
+  `npm run check:showcase` varre os arquivos gerados atrás de strings do modo
+  API e de primitivas de rede, com o build normal como controle, e roda no CI e
+  antes do deploy. Links antigos do modo API abrem o equivalente da
+  demonstração em vez da tela de CORS. Ver
+  [ADR 0006](docs/adr/0006-build-showcase-sem-modo-api.md).
+- **Página inicial para quem chega de fora**: a proposta em uma frase, um caso
+  real de citação inventada (lido do dataset e buscado na transcrição), a
+  esteira em seis passos, o problema, a engenharia e links para código, README e
+  ADRs.
+- **Tour guiado** de nove passos com spotlight sobre a interface real, com
+  progresso, Anterior/Próximo, teclado (←/→, Esc), foco gerenciado, `aria-live`
+  e retomada. Cada passo é uma URL (`?tour=N`).
+- **"Simular nova entrevista"**: uma gravação roteirizada atravessa a esteira
+  etapa por etapa até a decisão humana, sempre disparada por uma pessoa e com o
+  estado ainda puro e reproduzível.
+- Tela **"Por trás do produto"** com a arquitetura do webhook à decisão, a
+  máquina de estados, os ADRs e o que o CI cobra, cada item ligado ao arquivo.
+- Projeto Vitest `showcase` que testa a aplicação compilada como o bundle
+  público; testes de isolamento de rede para a página inicial e para o tour.
 
 ### Alterado
 
@@ -95,6 +117,22 @@ versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
   anúncio via `aria-live` das mudanças de status vindas do poll.
 - `frontend/README.md` atualizado: a seção "CI (sugestão)" descrevia um job
   que já existia desde a introdução do frontend.
+- **Frontend refeito para recrutadores** (ver ADR 0006): identidade visual
+  editorial — papel e tinta, marca-texto para evidência encontrada e caneta
+  vermelha para citação inventada — com Newsreader, Schibsted Grotesk e
+  JetBrains Mono auto-hospedadas; cabeçalho com quatro destinos (Esteira,
+  Entrevistas, Decisões, Por dentro) no lugar da barra lateral de oito itens;
+  telas de engenharia agrupadas em "Por dentro"; toda tela com uma linha que
+  explica o que se vê. A esteira virou um quadro por etapa; o scorecard fica ao
+  lado da transcrição, e a citação verificada leva ao trecho marcado.
+- O banner amarelo do modo demonstração virou a marca persistente "Dados
+  fictícios" no cabeçalho; tema e "Reiniciar demonstração" foram para um menu
+  discreto. "Avançar esteira · passo N" saiu.
+- `check:a11y` audita todas as telas e os nove passos do tour nos dois temas e
+  nos dois builds; `check:size` mede os dois builds; `screenshots` gera a
+  galeria nova a partir do showcase e, com `--matrix`, todas as telas em 1440,
+  1280, 390 px e tema escuro.
+- `.github/workflows/pages.yml` publica `dist-showcase/`.
 
 - Diagramas da arquitetura dupla redesenhados: os estados da esteira
   (`TRANSCREVENDO`, `DIARIZANDO`) agora aparecem numa faixa própria,
