@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import type { Route } from '../../app/routes';
 import { ErrorState } from '../../components/ErrorState';
 import { Icon } from '../../components/ui/Icon';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { SkeletonRows } from '../../components/ui/Skeleton';
 import { useInterviews } from '../../data/InterviewsProvider';
 import { useDataSource } from '../../data/source';
@@ -23,7 +24,7 @@ interface Props {
 // without reading the evidence is the failure mode, not the shortcut.
 export function ApprovalsView({ route }: Props) {
   const source = useDataSource();
-  const { summaries, error, reload } = useInterviews();
+  const { summaries, error, reload, jobTitles } = useInterviews();
   const now = source.now();
 
   const queue = useMemo(() => {
@@ -42,24 +43,12 @@ export function ApprovalsView({ route }: Props) {
   }
 
   return (
-    <div className="approvals">
-      <div className="view-head">
-        <div className="view-head__text">
-          <h1>Aprovações</h1>
-          <p className="view-head__sub">
-            Entrevistas cujo scorecard está pronto e que aguardam decisão humana, da que espera
-            há mais tempo para a mais recente.
-          </p>
-        </div>
-      </div>
-
-      <p className="banner banner--info">
-        <Icon name="gavel" />
-        <span>
-          Cada decisão é individual e em duas etapas. Não existe aprovação em massa nesta
-          interface — é uma decisão sobre o processo seletivo de uma pessoa.
-        </span>
-      </p>
+    <div className="page approvals">
+      <PageHeader
+        eyebrow="Decisões"
+        title="Esperando uma pessoa"
+        lede="Scorecards prontos, do que espera há mais tempo ao mais recente. Cada decisão é individual e em duas etapas: não existe aprovação em massa — é o processo seletivo de alguém."
+      />
 
       {queue.length === 0 ? (
         <div className="empty">
@@ -86,7 +75,9 @@ export function ApprovalsView({ route }: Props) {
               <dl className="approval__facts">
                 <div>
                   <dt>Vaga</dt>
-                  <dd>{summary.jobId ?? '—'}</dd>
+                  <dd>
+                    {summary.jobId === null ? '—' : (jobTitles[summary.jobId] ?? summary.jobId)}
+                  </dd>
                 </div>
                 <div>
                   <dt>Recomendação do modelo</dt>

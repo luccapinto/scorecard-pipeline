@@ -461,6 +461,50 @@ export function makeRuntimeSpec(
   };
 }
 
+// "Simular nova entrevista" scripts. Each walks one synthetic recording
+// through the pipeline, and each scorecard carries exactly one citation the
+// candidate never said — detecting that is what the product exists to show,
+// so a simulation without it would demonstrate nothing. Which competency, and
+// for which job, rotates, so repeated simulations do not produce one screen.
+// The flag itself is still DERIVED: `buildScorecard` searches the transcript.
+const SIMULATION_SCRIPTS: Pick<
+  InterviewSpec,
+  'candidate' | 'jobId' | 'scores' | 'hallucinated' | 'recommendation'
+>[] = [
+  {
+    candidate: 'Sofia Simulada',
+    jobId: 'python_pleno',
+    scores: [4, 3, 4, 4],
+    hallucinated: [2],
+    recommendation: 'Próxima Etapa',
+  },
+  {
+    candidate: 'Tiago Roteiro',
+    jobId: 'dados_senior',
+    scores: [4, 5, 3, 4, 4],
+    hallucinated: [2],
+    recommendation: 'Aprovado',
+  },
+  {
+    candidate: 'Úrsula Cenário',
+    jobId: 'frontend_junior',
+    scores: [3, 4, 3, 3],
+    hallucinated: [1],
+    recommendation: 'Próxima Etapa',
+  },
+];
+
+/** Spec for the `simulation`-th simulated interview (0-based), stored under `sequence`. */
+export function makeSimulationSpec(simulation: number, sequence: number): InterviewSpec {
+  return {
+    ...SIMULATION_SCRIPTS[simulation % SIMULATION_SCRIPTS.length],
+    slug: `runtime-${sequence}`,
+    status: 'recebida',
+    createdMinutesAgo: 0,
+    updatedMinutesAgo: 0,
+    funnelStage: 'entrevista',
+  };
+}
 
 /**
  * The id the reducer will assign to the next runtime-created interview.

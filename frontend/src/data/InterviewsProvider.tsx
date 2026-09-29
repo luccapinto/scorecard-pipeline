@@ -35,6 +35,12 @@ export interface InterviewsValue {
   /** Epoch ms of the last successful load, on the source's clock. */
   lastLoadedAt: number | null;
   polling: PollingState;
+  /**
+   * Human job title by `job_id`, from GET /jobs. Screens show "Engenheiro de
+   * Dados Sênior" instead of `dados_senior`; until it loads (or if it fails)
+   * they fall back to the id itself, which is still true, just less friendly.
+   */
+  jobTitles: Record<string, string>;
   reload: () => void;
 }
 
@@ -66,6 +72,7 @@ export function InterviewsProvider({ activeIntervalMs, children }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   const [hidden, setHidden] = useState(false);
+  const [jobTitles, setJobTitles] = useState<Record<string, string>>({});
   // One projector per DATASET, not per mode: changing the base URL or the API
   // key yields a different backend, and its rows must not inherit a cache
   // populated from the previous one.
@@ -108,6 +115,22 @@ export function InterviewsProvider({ activeIntervalMs, children }: Props) {
     // re-run this on every demo action and bring back the very flash this
     // split exists to remove; the watermark above is set from the current
     // value at the moment the dataset changed.
+  }, [source.datasetKey]);
+
+  // Job titles change with the dataset, never with a poll.
+  useEffect(() => {
+    let live = true;
+    setJobTitles({});
+    source
+      .listJobs()
+      .then((jobs) => {
+        if (live) setJobTitles(Object.fromEntries(jobs.map((job) => [job.job_id, job.title])));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+    // Keyed on the dataset for the same reason as the effect above.
   }, [source.datasetKey]);
 
   // The SAME dataset mutated locally — a demo action. Re-read, but never
@@ -181,9 +204,21 @@ export function InterviewsProvider({ activeIntervalMs, children }: Props) {
         intervalMs,
         pausedByVisibility: pollingEnabled && hidden,
       },
+      jobTitles,
       reload: load,
     }),
-    [raw, summaries, error, refreshing, lastLoadedAt, pollingEnabled, intervalMs, hidden, load],
+    [
+      raw,
+      summaries,
+      error,
+      refreshing,
+      lastLoadedAt,
+      pollingEnabled,
+      intervalMs,
+      hidden,
+      jobTitles,
+      load,
+    ],
   );
 
   return <InterviewsContext.Provider value={value}>{children}</InterviewsContext.Provider>;

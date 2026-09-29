@@ -10,10 +10,13 @@
 
 import { useEffect, useId, useState } from 'react';
 
+import type { Route } from '../../app/routes';
 import { Icon } from '../../components/ui/Icon';
+import { PageHeader } from '../../components/ui/PageHeader';
 import type { ThemePreference } from '../../config/preferences';
 import { DEFAULT_PREFERENCES, POLL_CHOICES } from '../../config/preferences';
 import { usePreferences } from '../../hooks/usePreferences';
+import { InsideNav } from '../inside/InsideNav';
 
 // The concrete shape of the API config. It is restated here rather than
 // imported from `api/client`, which views are forbidden to touch
@@ -24,6 +27,7 @@ export interface ApiConfigValue {
 }
 
 interface Props {
+  route: Route;
   config: ApiConfigValue;
   onConfigChange: (next: ApiConfigValue) => void;
 }
@@ -34,7 +38,7 @@ const THEMES: { value: ThemePreference; label: string; icon: 'sun' | 'moon' | 'm
   { value: 'system', label: 'Sistema', icon: 'monitor' },
 ];
 
-export function SettingsView({ config, onConfigChange }: Props) {
+export function SettingsView({ route, config, onConfigChange }: Props) {
   const { preferences, setPreferences } = usePreferences();
 
   const baseUrlId = useId();
@@ -62,15 +66,13 @@ export function SettingsView({ config, onConfigChange }: Props) {
   }
 
   return (
-    <>
-      <div className="view-head">
-        <div className="view-head__text">
-          <h1 className="view-head__title">Configuração</h1>
-          <p className="view-head__sub">
-            Conexão com a API e preferências desta interface. Tudo fica apenas neste navegador.
-          </p>
-        </div>
-      </div>
+    <div className="page">
+      <InsideNav route={route} />
+      <PageHeader
+        eyebrow="Por dentro · configuração"
+        title="Configuração"
+        lede="Conexão com a API e preferências desta interface. Tudo fica apenas neste navegador — nada é embutido no bundle."
+      />
 
       <section className="card" aria-labelledby="settings-api">
         <h2 className="card__title" id="settings-api">
@@ -276,6 +278,6 @@ export function SettingsView({ config, onConfigChange }: Props) {
           </div>
         </div>
       </section>
-    </>
+    </div>
   );
 }

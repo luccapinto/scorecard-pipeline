@@ -5,19 +5,28 @@
 // actually running. It is also the only place that documents the error
 // taxonomy, so a reader can see that every failure path was designed rather
 // than caught.
+//
+// The showcase has no API, so it gets a different screen rather than a live
+// one with nothing in it: what the real panel watches, and where in the code
+// each part lives. The live panel is compiled out of that bundle.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Health } from '../../api/types';
+import { codeUrl } from '../../app/links';
+import { SHOWCASE } from '../../app/edition';
+import type { Route } from '../../app/routes';
 import type { RequestSample } from '../../api/telemetry';
 import { lastRequest, subscribeRequests } from '../../api/telemetry';
 import { Icon } from '../../components/ui/Icon';
 import type { IconName } from '../../components/ui/Icon';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Skeleton, SkeletonGroup } from '../../components/ui/Skeleton';
 import { loadConfig } from '../../config/settings';
 import { useInterviews } from '../../data/InterviewsProvider';
 import { useDataSource } from '../../data/source';
 import { formatDateTime, formatLatency, formatRelative } from '../../lib/format';
+import { InsideNav } from '../inside/InsideNav';
 import type { Diagnosis } from './errorTaxonomy';
 import { ERROR_KIND_REFERENCE, diagnose, diagnoseUnhealthy } from './errorTaxonomy';
 
@@ -52,7 +61,16 @@ function DiagnosisBlock({ diagnosis }: { diagnosis: Diagnosis }) {
   );
 }
 
-export function HealthView() {
+export function HealthView({ route }: { route: Route }) {
+  return (
+    <div className="page">
+      <InsideNav route={route} />
+      {SHOWCASE ? <ShowcaseHealth /> : <LiveHealth />}
+    </div>
+  );
+}
+
+function LiveHealth() {
   const source = useDataSource();
   const { polling, lastLoadedAt, refreshing } = useInterviews();
 
@@ -104,21 +122,17 @@ export function HealthView() {
 
   return (
     <>
-      <div className="view-head">
-        <div className="view-head__text">
-          <h1 className="view-head__title">Saúde e observabilidade</h1>
-          <p className="view-head__sub">
-            O que a API respondeu, quanto custou a última requisição e como a atualização automática
-            está se comportando.
-          </p>
-        </div>
-        <div className="view-head__actions">
+      <PageHeader
+        eyebrow="Por dentro"
+        title="Saúde e observabilidade"
+        lede="A interface conta a verdade sobre si mesma: o que a API respondeu, quanto custou a última requisição e se a atualização automática está de fato rodando."
+        actions={
           <button type="button" className="btn btn--primary" onClick={check} disabled={checking}>
             <Icon name="rotate" />
             {checking ? 'Verificando…' : 'Verificar agora'}
           </button>
-        </div>
-      </div>
+        }
+      />
 
       <section className="card" aria-labelledby="health-api">
         <h2 className="card__title" id="health-api">
@@ -322,6 +336,83 @@ function UnhealthyBlock({ problems }: { problems: Record<string, string> }) {
       <p className="health-diagnosis__next">
         <strong>O que fazer:</strong> {diagnosis.nextStep}
       </p>
+    </>
+  );
+}
+
+function ShowcaseHealth() {
+  return (
+    <>
+      <PageHeader
+        eyebrow="Por dentro"
+        title="Saúde e observabilidade"
+        lede="Com o backend no ar, esta tela mostra o que a API respondeu, quanto custou a última requisição e se a atualização automática está rodando. Aqui, sem backend, ela mostra o que é observado — e onde."
+      />
+      <div className="explain-grid">
+        <section className="panel" aria-labelledby="obs-health">
+          <h2 id="obs-health" className="panel__title">
+            Saúde da API
+          </h2>
+          <p>
+            <code>GET /health</code> testa de verdade o Postgres e o Redis e devolve o nome da
+            dependência que falhou. A interface transforma isso em causa provável e próximo passo.
+          </p>
+          <a href={codeUrl('app/main.py')} target="_blank" rel="noreferrer noopener">
+            app/main.py
+          </a>
+        </section>
+        <section className="panel" aria-labelledby="obs-requests">
+          <h2 id="obs-requests" className="panel__title">
+            Última requisição
+          </h2>
+          <p>
+            <strong>Nenhuma requisição existe para mostrar.</strong> A demonstração não faz E/S de
+            rede: um teste percorre todas as telas com cada primitiva de rede trocada por um espião
+            que falha, e exige zero chamadas.
+          </p>
+          <a
+            href={codeUrl('frontend/src/demo/isolation.test.tsx')}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            demo/isolation.test.tsx
+          </a>
+        </section>
+        <section className="panel" aria-labelledby="obs-polling">
+          <h2 id="obs-polling" className="panel__title">
+            Atualização automática
+          </h2>
+          <p>
+            Com backend, um único loop de polling serve o app inteiro: mais rápido enquanto há
+            entrevista em processamento, mais lento quando nada se move, e pausado com a aba oculta.
+            Aqui nada se move sozinho — só quando você simula.
+          </p>
+          <a
+            href={codeUrl('frontend/src/data/InterviewsProvider.tsx')}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            data/InterviewsProvider.tsx
+          </a>
+        </section>
+        <section className="panel" aria-labelledby="obs-errors">
+          <h2 id="obs-errors" className="panel__title">
+            Falhas classificadas
+          </h2>
+          <p>
+            Toda falha vira uma categoria com uma ação correspondente, em vez de uma mensagem
+            genérica — e nenhuma delas exibe a chave de acesso. A classificação é pura e tem teste
+            próprio.
+          </p>
+          <a
+            href={codeUrl('frontend/src/features/health/errorTaxonomy.ts')}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            health/errorTaxonomy.ts
+          </a>
+        </section>
+      </div>
     </>
   );
 }

@@ -1,7 +1,15 @@
 /* Design tokens — the single place where colour, space, type and motion are
    defined. Components never hardcode a hex value; they reference a token.
-   Both themes are designed, not derived: dark is a separate palette, never a
-   filter over light (a filtered dark theme wrecks semantic hues and contrast).
+
+   The visual idea is an editor's desk: warm paper, black ink, and exactly two
+   marking tools that carry meaning — a HIGHLIGHTER for evidence that was found
+   in the transcript, and a RED PEN for a citation the model invented. Neither
+   is ever used for decoration, so neither ever loses its meaning. Interaction
+   (links, focus, selection) gets its own ink-blue so it cannot be mistaken
+   for either mark.
+
+   Both themes are designed, not derived: dark is a separate palette ("night
+   edition"), never a filter over light.
 
    Every text/background pair below is checked against WCAG 2.1 AA (>= 4.5:1
    for body text, >= 3:1 for large text and UI boundaries) by
@@ -18,13 +26,18 @@
   --sp-6: 2rem;
   --sp-7: 3rem;
   --sp-8: 4rem;
+  --sp-9: 6rem;
 
   /* --- Type ------------------------------------------------------------- */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
-  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', 'SFMono-Regular', Menlo,
+  /* Self-hosted (fontsource, bundled): the demo makes zero network requests,
+     and a font CDN would be the first one. */
+  --font-display: 'Newsreader Variable', 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Schibsted Grotesk Variable', 'Schibsted Grotesk', ui-sans-serif, system-ui,
+    -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo,
     Consolas, 'Liberation Mono', monospace;
 
+  --fs-2xs: 0.6875rem;
   --fs-xs: 0.75rem;
   --fs-sm: 0.8125rem;
   --fs-base: 0.9375rem;
@@ -33,9 +46,11 @@
   --fs-xl: 1.375rem;
   --fs-2xl: 1.75rem;
   --fs-3xl: 2.25rem;
+  --fs-4xl: clamp(2.25rem, 1.6rem + 2.4vw, 3.25rem);
+  --fs-hero: clamp(2.5rem, 1.4rem + 4.2vw, 4.5rem);
 
-  --lh-tight: 1.2;
-  --lh-snug: 1.35;
+  --lh-tight: 1.1;
+  --lh-snug: 1.3;
   --lh-normal: 1.55;
 
   --fw-normal: 400;
@@ -47,168 +62,197 @@
   --num-tabular: tabular-nums;
 
   /* --- Shape ------------------------------------------------------------ */
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  /* Small radii on purpose: paper has corners. Big pill shapes are reserved
+     for status marks so they read as stamps, not as buttons. */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
   --radius-pill: 999px;
   --border-w: 1px;
 
   /* --- Motion ----------------------------------------------------------- */
   --dur-fast: 120ms;
-  --dur: 180ms;
+  --dur: 200ms;
+  --dur-slow: 420ms;
   --ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* --- Layout ----------------------------------------------------------- */
-  --nav-w: 244px;
-  --topbar-h: 56px;
-  --content-max: 1220px;
+  --masthead-h: 60px;
+  --content-max: 1200px;
+  --prose-max: 62ch;
 
   --z-sticky: 10;
   --z-nav: 20;
   --z-overlay: 40;
+  --z-tour: 50;
   --z-toast: 60;
 }
 
 /* ===========================================================================
-   Light theme (default)
+   Light theme (default) — paper and ink
    =========================================================================== */
 :root,
 [data-theme='light'] {
   color-scheme: light;
 
-  --bg: #f4f6f9;
-  --surface: #ffffff;
-  --surface-2: #eef1f6;
-  --surface-3: #e4e9f0;
-  --surface-inset: #f7f9fc;
+  --bg: #f4f1ea;
+  --surface: #fffdf9;
+  --surface-2: #efebe2;
+  --surface-3: #e6e1d5;
+  --surface-inset: #f8f6f0;
 
-  --border: #d9dfe8;
-  --border-strong: #898f9a;
+  --border: #ddd7ca;
+  --border-strong: #8a8375;
 
-  --text: #10151f;
-  --text-muted: #55606f;
-  --text-faint: #687181;
-  --text-inverse: #ffffff;
+  --text: #1b1a17;
+  --text-muted: #57534a;
+  --text-faint: #6a6457;
+  --text-inverse: #fffdf9;
 
-  --accent: #2b52c7;
-  --accent-hover: #1f40a5;
-  --accent-soft: #e8edfb;
-  --accent-border: #b9c8f2;
-  --accent-text: #1c3a95;
+  /* Solid "ink" fill for primary actions: the most emphatic thing on a page
+     is the thing to do next, and it is printed, not glowing. */
+  --ink: #1b1a17;
+  --ink-hover: #3a3832;
 
-  --focus-ring: #1f40a5;
-  --focus-ring-offset: #ffffff;
+  --accent: #3141b8;
+  --accent-hover: #232f8f;
+  --accent-soft: #e8eaf8;
+  --accent-border: #b8bfeb;
+  --accent-text: #26338f;
 
-  /* Semantic status hues. `-fg` is text on `-soft`; both are AA on the pair. */
-  --ok: #17734a;
-  --ok-soft: #e0f3e9;
-  --ok-border: #a7d8bf;
+  --focus-ring: #3141b8;
+  --focus-ring-offset: #fffdf9;
 
-  --warn: #8a5300;
-  --warn-soft: #fcefd9;
-  --warn-border: #e9c489;
+  /* Semantic status hues. `-soft` is the tint behind text in that hue. */
+  --ok: #1f6b45;
+  --ok-soft: #e3f1e8;
+  --ok-border: #a9d3bb;
 
-  --danger: #b0202b;
-  --danger-strong: #8d1922;
-  --danger-soft: #fce9ea;
-  --danger-border: #f0b3b7;
+  --warn: #875000;
+  --warn-soft: #f8ecd5;
+  --warn-border: #e2c083;
 
-  --info: #16557f;
-  --info-soft: #e2f0f9;
-  --info-border: #a8cfe6;
+  /* The red pen. Reserved for "the model invented this" and real failures. */
+  --danger: #b42418;
+  --danger-strong: #8f1c13;
+  --danger-soft: #fbe6e1;
+  --danger-border: #ecac9f;
 
-  --neutral: #4d5766;
-  --neutral-soft: #e9ecf1;
-  --neutral-border: #ccd3dd;
+  --info: #1d5a86;
+  --info-soft: #e3eef6;
+  --info-border: #aecbe0;
 
-  --shadow-sm: 0 1px 2px rgba(16, 21, 31, 0.06), 0 1px 3px rgba(16, 21, 31, 0.04);
-  --shadow: 0 2px 4px rgba(16, 21, 31, 0.05), 0 6px 16px rgba(16, 21, 31, 0.07);
-  --shadow-lg: 0 8px 32px rgba(16, 21, 31, 0.14);
+  --neutral: #56524a;
+  --neutral-soft: #ebe8e1;
+  --neutral-border: #d2cdc2;
+
+  /* The highlighter. Reserved for a citation located in the transcript. */
+  --highlight: #ffe486;
+  --highlight-text: #1b1a17;
+  --highlight-edge: #e8c33a;
+
+  --shadow-sm: 0 1px 2px rgba(27, 26, 23, 0.06);
+  --shadow: 0 1px 2px rgba(27, 26, 23, 0.05), 0 8px 24px rgba(27, 26, 23, 0.07);
+  --shadow-lg: 0 2px 6px rgba(27, 26, 23, 0.08), 0 24px 56px rgba(27, 26, 23, 0.18);
+
+  --scrim: rgba(27, 26, 23, 0.56);
 
   /* Speaker palette for transcripts — hue-distinct, all AA on --surface. */
-  --speaker-0: #1f4fb5;
-  --speaker-1: #0f6b5c;
-  --speaker-2: #8a3f9e;
-  --speaker-3: #9a5000;
-  --speaker-4: #1a5f7a;
-  --speaker-5: #a33246;
+  --speaker-0: #3141b8;
+  --speaker-1: #1f6b45;
+  --speaker-2: #7c3b91;
+  --speaker-3: #8c4d00;
+  --speaker-4: #1b5d77;
+  --speaker-5: #a3304a;
 
-  /* Chart ink — readable as fill against --surface. */
-  --chart-1: #2b52c7;
-  --chart-2: #17734a;
-  --chart-3: #8a5300;
-  --chart-4: #b0202b;
-  --chart-5: #6b4bb8;
-  --chart-grid: #dde3ec;
-  --chart-track: #e9edf3;
+  /* Chart ink — readable as fill against --surface. One ink for every bar of
+     the score histogram on purpose: the bars are the same kind of thing, and
+     a red-to-green ramp would borrow the meaning reserved for the red pen. */
+  --chart-1: #3141b8;
+  --chart-2: #3141b8;
+  --chart-3: #3141b8;
+  --chart-4: #3141b8;
+  --chart-5: #3141b8;
+  --chart-grid: #e2ddd1;
+  --chart-track: #ebe7de;
 }
 
 /* ===========================================================================
-   Dark theme — an independently chosen palette, not an inverted light one.
+   Dark theme — "night edition", an independently chosen palette
    =========================================================================== */
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --bg: #0d1117;
-  --surface: #151b24;
-  --surface-2: #1c232f;
-  --surface-3: #242d3b;
-  --surface-inset: #111721;
+  --bg: #121110;
+  --surface: #1a1917;
+  --surface-2: #22211e;
+  --surface-3: #2b2926;
+  --surface-inset: #161513;
 
-  --border: #2a3441;
-  --border-strong: #5c6776;
+  --border: #34322d;
+  --border-strong: #736d62;
 
-  --text: #e8edf6;
-  --text-muted: #a3aec0;
-  --text-faint: #8b95a7;
-  --text-inverse: #0d1117;
+  --text: #efebe2;
+  --text-muted: #b5afa2;
+  --text-faint: #a09a8d;
+  --text-inverse: #121110;
 
-  --accent: #7ba2ff;
-  --accent-hover: #9cb9ff;
-  --accent-soft: #1b2740;
-  --accent-border: #33497a;
-  --accent-text: #a9c2ff;
+  --ink: #efebe2;
+  --ink-hover: #d6d1c6;
 
-  --focus-ring: #9cb9ff;
-  --focus-ring-offset: #0d1117;
+  --accent: #a3adff;
+  --accent-hover: #c0c7ff;
+  --accent-soft: #23264a;
+  --accent-border: #454c8f;
+  --accent-text: #bcc4ff;
 
-  --ok: #56d39a;
-  --ok-soft: #102a20;
-  --ok-border: #245c44;
+  --focus-ring: #bcc4ff;
+  --focus-ring-offset: #121110;
 
-  --warn: #e8b563;
-  --warn-soft: #2d2313;
-  --warn-border: #6b5122;
+  --ok: #78d4a1;
+  --ok-soft: #132a1d;
+  --ok-border: #2e5e42;
 
-  --danger: #ff8189;
-  --danger-strong: #ff9ba1;
-  --danger-soft: #331519;
-  --danger-border: #7a2f37;
+  --warn: #ecb866;
+  --warn-soft: #2d2312;
+  --warn-border: #6d5323;
 
-  --info: #6fc0ea;
-  --info-soft: #102530;
-  --info-border: #2c5468;
+  --danger: #ff8f80;
+  --danger-strong: #ffaca1;
+  --danger-soft: #3a1a15;
+  --danger-border: #80372c;
 
-  --neutral: #9aa5b7;
-  --neutral-soft: #1e2634;
-  --neutral-border: #36414f;
+  --info: #83c4ec;
+  --info-soft: #11242f;
+  --info-border: #2f566e;
+
+  --neutral: #aca69a;
+  --neutral-soft: #262420;
+  --neutral-border: #45423b;
+
+  --highlight: #5d4b0f;
+  --highlight-text: #fff4cc;
+  --highlight-edge: #a8871f;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow: 0 2px 6px rgba(0, 0, 0, 0.45), 0 10px 24px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.45), 0 12px 28px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.6);
 
-  --speaker-0: #8fb0ff;
-  --speaker-1: #5fd0b6;
-  --speaker-2: #d49bec;
-  --speaker-3: #eeb066;
-  --speaker-4: #74c4e8;
-  --speaker-5: #ff93a5;
+  --scrim: rgba(0, 0, 0, 0.66);
 
-  --chart-1: #7ba2ff;
-  --chart-2: #56d39a;
-  --chart-3: #e8b563;
-  --chart-4: #ff8189;
-  --chart-5: #b79cf5;
-  --chart-grid: #273140;
-  --chart-track: #202936;
+  --speaker-0: #a3adff;
+  --speaker-1: #78d4a1;
+  --speaker-2: #d9a3ee;
+  --speaker-3: #eeb46c;
+  --speaker-4: #7ecbe8;
+  --speaker-5: #ff98ab;
+
+  --chart-1: #a3adff;
+  --chart-2: #a3adff;
+  --chart-3: #a3adff;
+  --chart-4: #a3adff;
+  --chart-5: #a3adff;
+  --chart-grid: #2e2c28;
+  --chart-track: #262420;
 }

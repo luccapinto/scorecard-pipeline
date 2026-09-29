@@ -34,7 +34,17 @@ export type IconName =
   | 'close'
   | 'flask'
   | 'quote'
-  | 'arrowRight';
+  | 'arrowRight'
+  | 'arrowLeft'
+  | 'sliders'
+  | 'github'
+  | 'mic'
+  | 'fileText'
+  | 'users'
+  | 'sparkles'
+  | 'userCheck'
+  | 'book'
+  | 'layers';
 
 const PATHS: Record<IconName, string> = {
   dashboard: 'M3 13h7V3H3v10zm0 8h7v-6H3v6zm11 0h7V11h-7v10zm0-18v6h7V3h-7z',
@@ -64,6 +74,22 @@ const PATHS: Record<IconName, string> = {
   quote:
     'M7 7h4v4c0 2.2-1.8 4-4 4V7zM15 7h4v4c0 2.2-1.8 4-4 4V7z',
   arrowRight: 'M5 12h14M13 6l6 6-6 6',
+  arrowLeft: 'M19 12H5M11 18l-6-6 6-6',
+  // The ones below follow Lucide's geometry (ISC licence) so the set stays
+  // one consistent stroke family.
+  sliders: 'M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4',
+  github:
+    'M15 22v-4a4.8 4.8 0 00-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 004 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4M9 18c-4.51 2-5-2-7-2',
+  mic: 'M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2M12 19v3',
+  fileText: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8',
+  users:
+    'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
+  sparkles:
+    'M9.94 15.5A2 2 0 008.5 14.06l-6.14-1.58a.5.5 0 010-.96L8.5 9.94A2 2 0 009.94 8.5l1.58-6.14a.5.5 0 01.96 0l1.58 6.14a2 2 0 001.44 1.44l6.14 1.58a.5.5 0 010 .96l-6.14 1.58a2 2 0 00-1.44 1.44l-1.58 6.14a.5.5 0 01-.96 0z',
+  userCheck:
+    'M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM16 11l2 2 4-4',
+  book: 'M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z',
+  layers: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
 };
 
 interface Props {

@@ -3,7 +3,9 @@
 // No timers, no Date.now(), no randomness. The visible state is a function of
 // (anchor, ordered list of actions), so the same URL plus the same clicks is
 // always the same screen — which is what the screenshot script and the demo
-// tests rely on.
+// tests rely on. The animated "Simular nova entrevista" is a sequence of
+// ordinary `step` actions dispatched by DemoProvider after a person clicks;
+// the reducer never knows about the clock that spaced them out.
 //
 // The reducer also reproduces the backend's REFUSALS, not just its successes:
 // deciding an interview that is not awaiting approval fails with the exact
@@ -18,7 +20,7 @@ import type {
   Interview,
   InterviewStatus,
 } from '../api/types';
-import type { IngestionRecord } from '../data/demoControls';
+import type { IngestionRecord, SimulationLevel } from '../data/demoControls';
 import type { AuditEntry, DeliveryAttempt } from '../data/source';
 import {
   artifactsFor,
@@ -27,6 +29,7 @@ import {
   initialFunnelStages,
   isoFromEpoch,
   makeRuntimeSpec,
+  makeSimulationSpec,
   runtimeInterviewId,
   SPEC_BY_ID,
   type InterviewSpec,
@@ -46,7 +49,7 @@ const DEMO_ACTORS = ['Rita Avaliadora (fictícia)', 'Téo Revisor (fictício)'];
 export interface DemoState {
   /** Epoch ms the dataset is anchored to. */
   anchor: number;
-  /** Virtual time accumulated by `advance` actions. */
+  /** Virtual time accumulated by `step` actions. */
   elapsedMs: number;
   interviews: Interview[];
   runtimeSpecs: Record<string, InterviewSpec>;
@@ -55,8 +58,10 @@ export interface DemoState {
   delivery: Record<string, DeliveryAttempt[]>;
   runtimeSequence: number;
   lastIngestion: IngestionRecord | null;
-  /** Incremented on every advance, so the UI can label "passo N". */
-  step: number;
+  /** Latest interview created by `simulate`; the guided tour follows it. */
+  simulatedId: string | null;
+  /** How many simulations ran, which picks the next script. */
+  simulations: number;
   /**
    * Incremented on EVERY action. Consumers use it to re-read after a local
    * mutation without discarding what they already show — unlike the dataset
@@ -73,15 +78,31 @@ export interface DemoState {
 }
 
 export type DemoAction =
-  | { type: 'advance' }
+  | { type: 'simulate' }
+  | { type: 'step'; id: string }
+  | { type: 'prepareSimulation'; level: SimulationLevel }
   | { type: 'decide'; id: string; action: DecisionAction }
   | { type: 'reprocess'; id: string }
   | { type: 'create'; payload: CreateInterviewPayload }
   | { type: 'moveFunnel'; id: string; stageId: string }
   | { type: 'reset' };
 
-/** One advance step moves each in-flight interview forward by this much. */
+/** One step moves the interview a stage and the virtual clock this much. */
 const STEP_MS = 45_000;
+
+/** Status each preparation level guarantees, in pipeline order. */
+const LEVEL_TARGET: Record<SimulationLevel, InterviewStatus> = {
+  created: 'recebida',
+  midway: 'diarizando',
+  processed: 'aguardando_aprovacao',
+};
+const FORWARD_ORDER: InterviewStatus[] = [
+  'recebida',
+  'transcrevendo',
+  'diarizando',
+  'pontuando',
+  'aguardando_aprovacao',
+];
 
 export function initialDemoState(anchor: number): DemoState {
   const interviews = buildDemoInterviews(anchor);
@@ -95,7 +116,8 @@ export function initialDemoState(anchor: number): DemoState {
     delivery: buildDeliveryLog(interviews),
     runtimeSequence: 0,
     lastIngestion: null,
-    step: 0,
+    simulatedId: null,
+    simulations: 0,
     revision: 0,
     generation: 0,
   };
@@ -105,42 +127,72 @@ export function demoNow(state: DemoState): number {
   return state.anchor + state.elapsedMs;
 }
 
-function specFor(state: DemoState, id: string): InterviewSpec | undefined {
-  return SPEC_BY_ID[id] ?? state.runtimeSpecs[id];
-}
+/**
+ * Moves ONE interview a stage forward, as the worker would, and fills in the
+ * artefact that stage produces. Refuses silently (returns the same state) for
+ * anything that is not mid-pipeline: stepping is a demo control, not an API
+ * endpoint, so there is no backend refusal to reproduce.
+ */
+function step(state: DemoState, id: string): DemoState {
+  const interview = state.interviews.find((item) => item.id === id);
+  const next = interview === undefined ? undefined : NEXT_STATUS[interview.status];
+  const spec = SPEC_BY_ID[id] ?? state.runtimeSpecs[id];
+  if (interview === undefined || next === undefined || spec === undefined) return state;
 
-function advance(state: DemoState): DemoState {
   const elapsedMs = state.elapsedMs + STEP_MS;
-  const now = state.anchor + elapsedMs;
-  const stamp = isoFromEpoch(now);
+  const moved: Interview = {
+    ...interview,
+    status: next,
+    ...artifactsFor(spec, next),
+    updated_at: isoFromEpoch(state.anchor + elapsedMs),
+  };
+  const ready = next === 'aguardando_aprovacao';
 
-  let moved = false;
-  const interviews = state.interviews.map((interview) => {
-    const next = NEXT_STATUS[interview.status];
-    if (next === undefined) return interview;
-    const spec = specFor(state, interview.id);
-    if (spec === undefined) return interview;
-
-    moved = true;
-    return {
-      ...interview,
-      status: next,
-      ...artifactsFor(spec, next),
-      updated_at: stamp,
-    };
-  });
-
-  if (!moved) return { ...state, elapsedMs, step: state.step + 1 };
-
-  // A scorecard becoming ready is what triggers notification dispatch in
-  // app/tasks.py, so the delivery log is rebuilt from the new state.
   return {
     ...state,
     elapsedMs,
-    step: state.step + 1,
-    interviews,
-    delivery: { ...state.delivery, ...buildDeliveryLog(interviews) },
+    interviews: state.interviews.map((item) => (item.id === id ? moved : item)),
+    // A scorecard becoming ready is what triggers notification dispatch in
+    // app/tasks.py, and what moves the candidate into review.
+    delivery: ready ? { ...state.delivery, ...buildDeliveryLog([moved]) } : state.delivery,
+    funnelStageById: ready
+      ? { ...state.funnelStageById, [id]: 'revisao' }
+      : state.funnelStageById,
   };
+}
+
+/** A scripted recording arrives through the webhook, exactly like `create`. */
+function simulate(state: DemoState): DemoState {
+  const sequence = state.runtimeSequence + 1;
+  const spec = makeSimulationSpec(state.simulations, sequence);
+  const created = insertRuntime(
+    state,
+    {
+      recording_url: `/srv/app/data/synthetic/interview_${spec.jobId}.wav`,
+      job_id: spec.jobId,
+      external_id: `simulacao-${state.simulations + 1}`,
+    },
+    spec,
+  );
+  return {
+    ...created,
+    simulatedId: runtimeInterviewId(sequence),
+    simulations: state.simulations + 1,
+  };
+}
+
+/** Ensures a simulated interview exists and has reached at least `level`. */
+function prepareSimulation(state: DemoState, level: SimulationLevel): DemoState {
+  let next = state.simulatedId === null ? simulate(state) : state;
+  const id = next.simulatedId!;
+  const target = FORWARD_ORDER.indexOf(LEVEL_TARGET[level]);
+  for (;;) {
+    const status = next.interviews.find((item) => item.id === id)?.status;
+    const rank = status === undefined ? -1 : FORWARD_ORDER.indexOf(status);
+    // Decided or failed interviews are off the forward path: nothing to do.
+    if (rank === -1 || rank >= target) return next;
+    next = step(next, id);
+  }
 }
 
 function decide(state: DemoState, id: string, action: DecisionAction): DemoState {
@@ -240,7 +292,18 @@ function create(state: DemoState, payload: CreateInterviewPayload): DemoState {
   }
 
   const sequence = state.runtimeSequence + 1;
-  const spec = makeRuntimeSpec(sequence, payload.job_id, externalId);
+  return insertRuntime(state, payload, makeRuntimeSpec(sequence, payload.job_id, externalId));
+}
+
+/** Registers a new `recebida` interview under the next runtime sequence. */
+function insertRuntime(
+  state: DemoState,
+  payload: CreateInterviewPayload,
+  spec: InterviewSpec,
+): DemoState {
+  const now = demoNow(state);
+  const externalId = payload.external_id?.trim() ? payload.external_id.trim() : null;
+  const sequence = state.runtimeSequence + 1;
   // Shared with demoSource via the same helper, so the reported id and the
   // created id can never disagree.
   const id = runtimeInterviewId(sequence);
@@ -298,8 +361,12 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
 
 function applyDemoAction(state: DemoState, action: Exclude<DemoAction, { type: 'reset' }>) {
   switch (action.type) {
-    case 'advance':
-      return advance(state);
+    case 'simulate':
+      return simulate(state);
+    case 'step':
+      return step(state, action.id);
+    case 'prepareSimulation':
+      return prepareSimulation(state, action.level);
     case 'decide':
       return decide(state, action.id, action.action);
     case 'reprocess':

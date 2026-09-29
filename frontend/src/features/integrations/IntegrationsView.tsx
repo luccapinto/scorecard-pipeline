@@ -5,9 +5,11 @@ import type { Route } from '../../app/routes';
 import { ErrorState } from '../../components/ErrorState';
 import { Gap } from '../../components/ui/Gap';
 import { Icon } from '../../components/ui/Icon';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { SkeletonCards } from '../../components/ui/Skeleton';
 import { useInterviews } from '../../data/InterviewsProvider';
 import { useDataSource } from '../../data/source';
+import { InsideNav } from '../inside/InsideNav';
 import { buildSlackPayload, buildWebhookPayload, TOKEN_PLACEHOLDER } from './blockKit';
 import { SlackPreview } from './SlackPreview';
 
@@ -73,42 +75,18 @@ export function IntegrationsView({ route, apiBaseUrl }: Props) {
   }
 
   return (
-    <div className="integrations">
-      <div className="view-head">
-        <div className="view-head__text">
-          <h1>Integrações e mensagens</h1>
-          <p className="view-head__sub">
-            Para onde o scorecard vai quando fica pronto, exatamente com que formato, e como a
-            decisão volta para o sistema.
-          </p>
-        </div>
-      </div>
+    <div className="page integrations">
+      <InsideNav route={route} />
+      <PageHeader
+        eyebrow="Por dentro · notificações"
+        title="Como o time fica sabendo"
+        lede="Quando o scorecard fica pronto, ele vai para o Slack e para um webhook genérico — com este formato exato — e a decisão pode voltar por um link de uso único."
+      />
 
-      <section className="card" aria-labelledby="conexoes-title">
-        <h2 id="conexoes-title" className="card__title">
-          Conexões
-        </h2>
-        <div className="card__body">
-          {integrations === undefined ? (
-            <SkeletonCards cards={4} label="Consultando estado das integrações…" />
-          ) : integrations === null ? (
-            <Gap gap="integrations" title="Estado não exposto por esta API">
-              <p className="muted">
-                Esta tela mostra estado real quando o backend expõe{' '}
-                <code className="mono">GET /integrations</code>. As variáveis que controlam cada
-                integração estão documentadas em <code className="mono">.env.example</code>.
-              </p>
-            </Gap>
-          ) : (
-            <ConnectionGrid status={integrations} synthetic={source.mode === 'demo'} />
-          )}
-        </div>
-      </section>
-
-      <section className="card" aria-labelledby="previa-title">
-        <div className="card__header">
-          <h2 id="previa-title" className="card__title">
-            Prévia da notificação
+      <section className="panel" aria-labelledby="previa-title" data-tour="slack">
+        <div className="panel__head">
+          <h2 id="previa-title" className="panel__title">
+            A mensagem no Slack
           </h2>
           {previewable.length > 1 && (
             <label className="field-inline">
@@ -126,22 +104,36 @@ export function IntegrationsView({ route, apiBaseUrl }: Props) {
             </label>
           )}
         </div>
-        <div className="card__body">
-          <p className="card__lead">
-            Reprodução da estrutura montada por{' '}
-            <code className="mono">app/notifications.py::SlackNotification</code> — cabeçalho,
-            campos de ID e recomendação, um bloco por competência com o marcador de verificação, e
-            os botões de decisão.
-          </p>
+        <p className="panel__lede">
+          Reprodução fiel do Block Kit montado por{' '}
+          <code>app/notifications.py::SlackNotification</code> — cabeçalho, recomendação, um bloco
+          por competência com o marcador de verificação, e os botões de decisão.
+        </p>
 
-          {slackPayload === null ? (
+        {slackPayload === null ? (
+          <p className="muted">Nenhuma entrevista com scorecard disponível para pré-visualizar.</p>
+        ) : (
+          <SlackPreview payload={slackPayload} hasApprovalToken={hasApprovalToken} />
+        )}
+      </section>
+
+      <section className="panel" aria-labelledby="conexoes-title">
+        <h2 id="conexoes-title" className="panel__title">
+          Conexões
+        </h2>
+        {integrations === undefined ? (
+          <SkeletonCards cards={4} label="Consultando estado das integrações…" />
+        ) : integrations === null ? (
+          <Gap gap="integrations" title="Estado não exposto por esta API">
             <p className="muted">
-              Nenhuma entrevista com scorecard disponível para pré-visualizar.
+              Esta tela mostra estado real quando o backend expõe <code>GET /integrations</code>. As
+              variáveis que controlam cada integração estão documentadas em{' '}
+              <code>.env.example</code>.
             </p>
-          ) : (
-            <SlackPreview payload={slackPayload} hasApprovalToken={hasApprovalToken} />
-          )}
-        </div>
+          </Gap>
+        ) : (
+          <ConnectionGrid status={integrations} synthetic={source.mode === 'demo'} />
+        )}
       </section>
 
       <section className="card" aria-labelledby="links-title">

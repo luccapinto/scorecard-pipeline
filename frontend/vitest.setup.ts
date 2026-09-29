@@ -4,9 +4,10 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
 
-// jsdom implements neither matchMedia nor scrollIntoView. Both are used by
-// production code paths under test (theme resolution, quote -> transcript
-// scrolling), so they are stubbed once here rather than in every suite.
+// jsdom implements neither matchMedia, scrollIntoView nor scrollTo. All are
+// used by production code paths under test (theme resolution, quote ->
+// transcript scrolling, the guided tour), so they are stubbed once here
+// rather than in every suite.
 if (typeof window !== 'undefined') {
   if (typeof window.matchMedia !== 'function') {
     window.matchMedia = (query: string): MediaQueryList =>
@@ -24,6 +25,7 @@ if (typeof window !== 'undefined') {
   if (typeof Element.prototype.scrollIntoView !== 'function') {
     Element.prototype.scrollIntoView = () => {};
   }
+  window.scrollTo = () => {};
 }
 
 beforeEach(() => {
