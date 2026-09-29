@@ -298,7 +298,7 @@ pessoas.
 
 ## Testes
 
-Vitest + Testing Library (jsdom). **302 testes**, em dois projetos: `app` (o
+Vitest + Testing Library (jsdom). **303 testes**, em dois projetos: `app` (o
 build normal) e `showcase` (a aplicação compilada com a constante do build
 público ligada).
 
