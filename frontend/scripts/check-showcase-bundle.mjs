@@ -31,7 +31,6 @@ const SENTINELS = [
   ['localhost:5173', 'features/health/errorTaxonomy.ts — backend CORS allowlist'],
   ['Taxonomia de erros', 'features/health/HealthView.tsx — live observability'],
   ['Troque para o modo API', 'features/health/HealthView.tsx — live observability'],
-  ['Ir para a API real', 'the removed demo banner'],
   ['Fonte de dados', 'components/shell/ModeSwitch.tsx — mode toggle'],
   ['API inacessível', 'components/shell/LiveStatus.tsx — API liveness'],
   ['scorecard-pipeline.config', 'config/settings.ts — stored URL and key'],
@@ -98,9 +97,10 @@ if (showcase.network.length === 0) {
 if (existsSync(join(FULL_DIR, 'index.html'))) {
   const full = scan(FULL_DIR);
   const seen = SENTINELS.filter(([needle]) => full.hits.has(needle)).length;
-  if (seen === 0) {
+  if (seen !== SENTINELS.length) {
     failed = true;
-    console.error('✗ control: the full build contains none of the sentinels — the scan is blind.');
+    const missing = SENTINELS.filter(([needle]) => !full.hits.has(needle)).map(([needle]) => needle);
+    console.error(`✗ control: sentinels missing from the full build (the scan is blind to them): ${missing.join(', ')}`);
   } else {
     console.log(`✓ control: ${seen}/${SENTINELS.length} sentinels found in the full build (dist/).`);
   }
