@@ -105,16 +105,20 @@ const aimText = async (locator, ms) => {
   await d.moveTo(x, y, ms);
 };
 /**
- * The masthead is sticky, so its links are always on screen — but the
- * director's `reveal` requires `top >= topInset + 8`, and a nav link spans
- * the masthead from y = 0, so even with the inset cleared it counts as
- * hidden and `scrollIntoView` drags the page. Move and click without it.
+ * The masthead is sticky, so its links are always on screen, and anything
+ * that "scrolls them into view" moves the page instead: the director's
+ * `reveal` (a nav link starts at y = 0, above any inset) and Playwright's own
+ * `locator.click`, whose actionability scroll lifted the scorecard ~120 px
+ * for a few frames before the route changed (take 7). A plain mouse click at
+ * the link's centre scrolls nothing; the `.hop` wait after it proves it hit.
  */
 const clickNav = async (locator) => {
   const box = await locator.boundingBox();
-  await d.moveTo(box.x + box.width / 2, box.y + box.height / 2, 750);
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await d.moveTo(x, y, 750);
   await d.hold(180);
-  await locator.click({ delay: 70 });
+  await page.mouse.click(x, y, { delay: 70 });
 };
 
 // ── 0 · Title ───────────────────────────────────────────────────────
