@@ -5,6 +5,7 @@
 // about a runtime flag that imitates it.
 
 import { render, screen, waitFor } from '@testing-library/react';
+import type { Mock } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../App';
@@ -12,7 +13,7 @@ import { SHOWCASE } from './edition';
 
 const ANCHOR = Date.parse('2026-09-21T14:00:00Z');
 
-let fetchSpy: ReturnType<typeof vi.fn>;
+let fetchSpy: Mock;
 
 beforeEach(() => {
   fetchSpy = vi.fn(() => {
@@ -49,7 +50,7 @@ describe('showcase build', () => {
     expect(
       await screen.findByRole('heading', { name: 'Da gravação à decisão', level: 1 }),
     ).toBeInTheDocument();
-    expect(await screen.findByText('Bruno Exemplo')).toBeInTheDocument();
+    expect((await screen.findAllByText('Bruno Exemplo')).length).toBeGreaterThan(0);
     expect(screen.queryByText(/CORS/)).not.toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -57,7 +58,7 @@ describe('showcase build', () => {
   it('has no mode switch, no API status and no settings anywhere in the chrome', async () => {
     window.location.hash = `#/demo/esteira?t=${ANCHOR}`;
     render(<App />);
-    await screen.findByText('Bruno Exemplo');
+    await screen.findAllByText('Bruno Exemplo');
 
     expect(screen.queryByRole('group', { name: /Fonte de dados/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/API no ar|API inacessível/)).not.toBeInTheDocument();

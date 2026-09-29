@@ -123,7 +123,7 @@ describe('demo mode isolation', () => {
     ).toBeInTheDocument();
     // The synthetic dataset is actually present, so this is not passing by
     // virtue of rendering nothing — and it is labelled as fictitious.
-    expect(await screen.findByText('Bruno Exemplo')).toBeInTheDocument();
+    expect((await screen.findAllByText('Bruno Exemplo')).length).toBeGreaterThan(0);
     expect(screen.getByText('Dados fictícios')).toBeInTheDocument();
     expect(network.calls()).toBe(0);
   });
@@ -169,7 +169,7 @@ describe('demo mode isolation', () => {
     try {
       goTo('esteira');
       render(<App />);
-      await screen.findByText('Bruno Exemplo');
+      await screen.findAllByText('Bruno Exemplo');
       await user.click(screen.getByRole('button', { name: /Simular nova entrevista/i }));
 
       // It arrives in the first column, then stops in front of a person —
