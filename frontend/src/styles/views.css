@@ -631,17 +631,28 @@
   background: var(--ink);
   color: var(--text-inverse);
 }
+/* The stations light up in order once, like a signal passing down the line.
+   Only the rule and the icon animate: the words stay at full contrast from
+   the first frame, so nobody reads (or audits) a half-faded label. */
 @media (prefers-reduced-motion: no-preference) {
   .station {
-    animation: station-on 520ms var(--ease-out) both;
+    animation: station-rule 520ms var(--ease-out) both;
+    animation-delay: calc(var(--i) * 380ms + 150ms);
+  }
+  .station__icon {
+    animation: station-icon 520ms var(--ease-out) both;
     animation-delay: calc(var(--i) * 380ms + 150ms);
   }
 }
-@keyframes station-on {
+@keyframes station-rule {
   from {
-    opacity: 0.25;
     border-top-color: var(--border);
-    transform: translateY(6px);
+  }
+}
+@keyframes station-icon {
+  from {
+    transform: scale(0.82);
+    border-color: var(--border);
   }
 }
 
