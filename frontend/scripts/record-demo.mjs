@@ -153,18 +153,24 @@ await press(page.getByRole('button', { name: 'Simular nova entrevista' }));
 // Each stage is its own wait: the card must really be in that column. The
 // cursor follows along the column headers — the card itself is moving, so a
 // box measured on it would be stale by the time the cursor got there. Every
-// stage, so the cursor never trails a column behind the card.
+// stage, detected on the next animation frame: `locator.waitFor` backs off to
+// 500 ms polls, and the cursor then reached each column as the card left it.
+// The board does not scroll here, so no reveal/settle before pointing either.
 const fresh = (stage) => page.locator(`.stage--${stage} .bcard--fresh`);
 const label = (stage) => page.locator(`.stage--${stage} .stage__label`);
+const arrived = (stage) =>
+  page.waitForFunction((s) => document.querySelector(`.stage--${s} .bcard--fresh`) !== null, stage, {
+    polling: 'raf',
+  });
 for (const stage of ['recebida', 'transcrevendo', 'diarizando']) {
-  await fresh(stage).waitFor();
-  await aim(label(stage), 600);
+  await arrived(stage);
+  await d.pointAt(label(stage), 500);
 }
-await fresh('pontuando').waitFor();
+await arrived('pontuando');
 await d.caption('Pontuação', 'Um LLM aplica a rubrica da vaga — e cada citação é conferida no texto');
-await aim(label('pontuando'), 600);
-await fresh('aguardando_aprovacao').waitFor();
-await aim(fresh('aguardando_aprovacao'), 800);
+await d.pointAt(label('pontuando'), 500);
+await arrived('aguardando_aprovacao');
+await d.pointAt(fresh('aguardando_aprovacao'), 700);
 await d.hold(1000);
 const ready = page.locator('.sim-note', { hasText: 'pronta para revisão' });
 await ready.waitFor();
