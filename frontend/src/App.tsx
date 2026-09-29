@@ -101,17 +101,34 @@ function FullApp() {
       pollIntervalMs={preferences.pollIntervalMs}
       apiBaseUrl={route.mode === 'demo' ? DEMO_API_BASE : config.baseUrl}
       api={{
-        modeSwitch: <ModeSwitch route={route} />,
-        liveStatus: route.mode === 'api' ? <LiveStatus route={route} /> : null,
-        settings: <SettingsView route={route} config={config} onConfigChange={updateConfig} />,
-        settingsLink: (
-          <a
-            className="btn btn--ghost btn--sm btn--block"
-            href={hrefFor({ mode: route.mode, name: 'settings', clockAnchor: route.clockAnchor })}
-          >
-            Configurar a API
-          </a>
+        // Everything below exists only in FullApp, which the showcase build
+        // deletes — so none of it, strings included, reaches the public
+        // bundle (scripts/check-showcase-bundle.mjs enforces that).
+        masthead: (
+          <>
+            {route.mode === 'api' && <LiveStatus route={route} />}
+            <div className="masthead__mode">
+              <ModeSwitch route={route} />
+            </div>
+          </>
         ),
+        menu: (
+          <>
+            {/* On a phone the switch moves in here; CSS shows exactly one of
+                the two copies, so assistive tech only ever meets one. */}
+            <div className="shell-menu__mode">
+              <p className="shell-menu__label">Fonte de dados</p>
+              <ModeSwitch route={route} />
+            </div>
+            <a
+              className="btn btn--ghost btn--sm btn--block"
+              href={hrefFor({ mode: route.mode, name: 'settings', clockAnchor: route.clockAnchor })}
+            >
+              Configurar a API
+            </a>
+          </>
+        ),
+        settings: <SettingsView route={route} config={config} onConfigChange={updateConfig} />,
       }}
     />
   );
@@ -136,10 +153,11 @@ function FullApp() {
 
 /** What only the full build contributes to the chrome. */
 interface ApiChrome {
-  modeSwitch: React.ReactNode;
-  liveStatus: React.ReactNode;
+  /** Liveness and the mode switch, beside the options menu. */
+  masthead: React.ReactNode;
+  /** Extra entries inside the options menu. */
+  menu: React.ReactNode;
   settings: React.ReactNode;
-  settingsLink: React.ReactNode;
 }
 
 interface ScreensProps {
@@ -186,24 +204,13 @@ function Chrome({ route, theme, onThemeChange, apiBaseUrl, api }: Omit<ScreensPr
         <>
           {route.mode === 'demo' && <TourLauncher />}
           {route.mode === 'demo' && <DemoMarker />}
-          {api?.liveStatus}
-          {api !== undefined && <div className="masthead__mode">{api.modeSwitch}</div>}
+          {api?.masthead}
           <ShellMenu
             theme={theme}
             onThemeChange={onThemeChange}
             onReset={demo === null ? undefined : demo.reset}
           >
-            {api !== undefined && (
-              <>
-                {/* On a phone the switch moves in here; CSS shows exactly
-                    one of the two copies, so assistive tech sees one. */}
-                <div className="shell-menu__mode">
-                  <p className="shell-menu__label">Fonte de dados</p>
-                  {api.modeSwitch}
-                </div>
-                {api.settingsLink}
-              </>
-            )}
+            {api?.menu}
           </ShellMenu>
         </>
       }
