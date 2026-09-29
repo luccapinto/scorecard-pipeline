@@ -143,7 +143,8 @@ npm run check:a11y       # axe-core em todas as telas e passos do tour (precisa 
                          # EDITION=showcase ao auditar o preview do showcase)
 npm run screenshots      # regenera docs/assets a partir do preview do showcase;
                          # `-- --matrix <dir>` gera tudo em 1440, 1280, 390 e tema escuro
-npm run demo-video       # grava o vídeo do README (desatualizado: será reescrito para a interface nova)
+npm run demo-video       # grava o vídeo do README a partir do preview do showcase
+                         # (porta 4173; PREVIEW_URL para outra); saída em docs/demo/, fora do git
 npm run build:demo-reference  # regenera o dataset de referência do demo
 ```
 

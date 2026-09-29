@@ -13,8 +13,8 @@
 //
 // Usage:
 //   npm run build:showcase
-//   npm run preview:showcase -- --port 4191 &   # or PREVIEW_URL=... npm run demo-video
-//   PREVIEW_URL=http://127.0.0.1:4191 npm run demo-video
+//   npm run preview:showcase &    # port 4173, the default target
+//   npm run demo-video            # PREVIEW_URL=http://127.0.0.1:<port> for another server
 //
 // Output (not committed): docs/demo/demo.mp4 — the README version, 1080p under
 // GitHub's 10 MB attachment limit — and docs/demo/demo-linkedin.mp4, the
