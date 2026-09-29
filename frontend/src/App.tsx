@@ -187,13 +187,23 @@ function Chrome({ route, theme, onThemeChange, apiBaseUrl, api }: Omit<ScreensPr
           {route.mode === 'demo' && <TourLauncher />}
           {route.mode === 'demo' && <DemoMarker />}
           {api?.liveStatus}
-          {api?.modeSwitch}
+          {api !== undefined && <div className="masthead__mode">{api.modeSwitch}</div>}
           <ShellMenu
             theme={theme}
             onThemeChange={onThemeChange}
             onReset={demo === null ? undefined : demo.reset}
           >
-            {api?.settingsLink}
+            {api !== undefined && (
+              <>
+                {/* On a phone the switch moves in here; CSS shows exactly
+                    one of the two copies, so assistive tech sees one. */}
+                <div className="shell-menu__mode">
+                  <p className="shell-menu__label">Fonte de dados</p>
+                  {api.modeSwitch}
+                </div>
+                {api.settingsLink}
+              </>
+            )}
           </ShellMenu>
         </>
       }

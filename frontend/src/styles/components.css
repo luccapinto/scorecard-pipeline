@@ -275,7 +275,8 @@ input::placeholder {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  width: 17.5rem;
+  width: 19.5rem;
+  max-width: calc(100vw - 2 * var(--sp-4));
   padding: var(--sp-4);
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-lg);
@@ -295,6 +296,7 @@ input::placeholder {
 .shell-menu__panel .segmented__option {
   flex: 1;
   justify-content: center;
+  padding: var(--sp-1) var(--sp-2);
 }
 .shell-menu__section {
   display: flex;
@@ -306,6 +308,26 @@ input::placeholder {
 .shell-menu__hint {
   color: var(--text-muted);
   font-size: var(--fs-xs);
+}
+.shell-menu__mode {
+  display: none;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.shell-menu__mode .mode-switch {
+  display: flex;
+}
+.shell-menu__mode .mode-switch__option {
+  flex: 1;
+  justify-content: center;
+}
+@media (max-width: 560px) {
+  .masthead__mode {
+    display: none;
+  }
+  .shell-menu__mode {
+    display: flex;
+  }
 }
 
 .demo-marker {

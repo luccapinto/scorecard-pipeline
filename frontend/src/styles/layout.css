@@ -319,6 +319,26 @@
   .masthead .btn__long {
     display: none;
   }
+  /* Full build only: the API liveness keeps its dot and its accessible name
+     (on the link) but yields the words, and the mode switch drops its icon —
+     otherwise the options menu is pushed off a 390px screen. */
+  .masthead .live__text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .masthead .live {
+    min-height: 40px;
+  }
+  .masthead .mode-switch__option svg {
+    display: none;
+  }
+  .masthead .mode-switch__option {
+    padding: var(--sp-1) var(--sp-2);
+  }
   .main-nav__link {
     padding: 0 var(--sp-2);
     font-size: var(--fs-sm);
